@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import Chip from "@/components/Chip";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import Toast from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import {
@@ -22,6 +23,7 @@ export default function DemandaPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [recentes, setRecentes] = useState<Demanda[]>([]);
   const [loadingRecentes, setLoadingRecentes] = useState(true);
+  const [paraConfirmar, setParaConfirmar] = useState<Demanda | null>(null);
 
   const valido = cliente.trim().length > 0 && servico !== null;
 
@@ -47,7 +49,7 @@ export default function DemandaPage() {
     setObservacao("");
   }
 
-  async function salvar(concluido: boolean) {
+  async function salvar() {
     if (!valido || !servico) return;
     setSaving(true);
     const { error } = await supabase.from("demandas").insert({
@@ -55,17 +57,34 @@ export default function DemandaPage() {
       servico,
       contato: contato.trim() || null,
       observacao: observacao.trim() || null,
-      concluido,
+      concluido: false,
     });
     setSaving(false);
     if (error) {
       setToast(`Erro ao salvar: ${error.message}`);
       return;
     }
-    setToast(concluido ? "Demanda registrada e concluída." : "Demanda registrada.");
+    setToast("Demanda registrada.");
     resetForm();
     carregarRecentes();
     setTimeout(() => setToast(null), 2500);
+  }
+
+  async function confirmarToggleConcluido() {
+    if (!paraConfirmar) return;
+    const novoStatus = !paraConfirmar.concluido;
+    const { error } = await supabase
+      .from("demandas")
+      .update({ concluido: novoStatus })
+      .eq("id", paraConfirmar.id);
+    setParaConfirmar(null);
+    if (error) {
+      setToast(`Erro ao atualizar: ${error.message}`);
+      return;
+    }
+    setRecentes((prev) =>
+      prev.map((d) => (d.id === paraConfirmar.id ? { ...d, concluido: novoStatus } : d)),
+    );
   }
 
   return (
@@ -132,19 +151,11 @@ export default function DemandaPage() {
           />
         </div>
 
-        <div className="space-y-3 pb-6">
+        <div className="pb-6">
           <button
             type="button"
             disabled={!valido || saving}
-            onClick={() => salvar(true)}
-            className="w-full rounded-xl bg-success py-4 text-base font-extrabold uppercase tracking-wide text-black disabled:opacity-40"
-          >
-            Concluído
-          </button>
-          <button
-            type="button"
-            disabled={!valido || saving}
-            onClick={() => salvar(false)}
+            onClick={() => salvar()}
             className="w-full rounded-xl bg-demanda py-4 text-base font-extrabold uppercase tracking-wide text-black disabled:opacity-40"
           >
             Salvar Demanda
@@ -181,13 +192,17 @@ export default function DemandaPage() {
                         {formatDateLabel(new Date(d.created_at))} ·{" "}
                         {formatTime(new Date(d.created_at))}
                       </p>
-                      <p
-                        className={`mt-1 text-xs font-bold uppercase ${
-                          d.concluido ? "text-success" : "text-muted"
+                      <button
+                        type="button"
+                        onClick={() => setParaConfirmar(d)}
+                        className={`mt-1 rounded-full border px-2 py-0.5 text-xs font-bold uppercase ${
+                          d.concluido
+                            ? "border-success text-success"
+                            : "border-border text-muted"
                         }`}
                       >
                         {d.concluido ? "Concluído" : "Em aberto"}
-                      </p>
+                      </button>
                     </div>
                   </div>
                 </li>
@@ -196,6 +211,19 @@ export default function DemandaPage() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={paraConfirmar !== null}
+        title={paraConfirmar?.concluido ? "Reabrir demanda?" : "Marcar como concluído?"}
+        description={
+          paraConfirmar?.concluido
+            ? "Esta demanda volta a ficar em aberto."
+            : "Confirma que esta demanda foi finalizada."
+        }
+        confirmLabel={paraConfirmar?.concluido ? "Sim, reabrir" : "Sim, concluído"}
+        onConfirm={confirmarToggleConcluido}
+        onCancel={() => setParaConfirmar(null)}
+      />
     </div>
   );
 }

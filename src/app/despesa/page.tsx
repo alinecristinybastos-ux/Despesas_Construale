@@ -23,6 +23,7 @@ export default function DespesaPage() {
   const [recentes, setRecentes] = useState<Despesa[]>([]);
   const [loadingRecentes, setLoadingRecentes] = useState(true);
   const [paraConfirmar, setParaConfirmar] = useState<Despesa | null>(null);
+  const [paraExcluir, setParaExcluir] = useState<Despesa | null>(null);
 
   const valido = Number(valor.replace(",", ".")) > 0 && categoria !== null;
 
@@ -84,6 +85,19 @@ export default function DespesaPage() {
         d.id === paraConfirmar.id ? { ...d, lancado_no_sistema: novoStatus } : d,
       ),
     );
+  }
+
+  async function confirmarExcluir() {
+    if (!paraExcluir) return;
+    const { error } = await supabase.from("despesas").delete().eq("id", paraExcluir.id);
+    setParaExcluir(null);
+    if (error) {
+      setToast(`Erro ao excluir: ${error.message}`);
+      return;
+    }
+    setRecentes((prev) => prev.filter((d) => d.id !== paraExcluir.id));
+    setToast("Despesa excluída.");
+    setTimeout(() => setToast(null), 2500);
   }
 
   return (
@@ -193,6 +207,15 @@ export default function DespesaPage() {
                       >
                         {d.lancado_no_sistema ? "Lançado" : "Pendente"}
                       </button>
+                      {d.lancado_no_sistema && (
+                        <button
+                          type="button"
+                          onClick={() => setParaExcluir(d)}
+                          className="mt-1 block text-xs font-bold uppercase text-danger"
+                        >
+                          Excluir
+                        </button>
+                      )}
                     </div>
                   </div>
                 </li>
@@ -217,6 +240,15 @@ export default function DespesaPage() {
         confirmLabel={paraConfirmar?.lancado_no_sistema ? "Sim, desmarcar" : "Sim, lançado"}
         onConfirm={confirmarToggleLancado}
         onCancel={() => setParaConfirmar(null)}
+      />
+
+      <ConfirmDialog
+        open={paraExcluir !== null}
+        title="Excluir despesa?"
+        description="Esta ação não pode ser desfeita."
+        confirmLabel="Sim, excluir"
+        onConfirm={confirmarExcluir}
+        onCancel={() => setParaExcluir(null)}
       />
     </div>
   );

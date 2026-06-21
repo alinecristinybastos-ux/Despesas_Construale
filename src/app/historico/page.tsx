@@ -33,6 +33,8 @@ export default function HistoricoPage() {
   const [busca, setBusca] = useState("");
   const [loading, setLoading] = useState(true);
   const [paraConfirmar, setParaConfirmar] = useState<Despesa | null>(null);
+  const [paraExcluir, setParaExcluir] = useState<Despesa | null>(null);
+  const [paraConfirmarDemanda, setParaConfirmarDemanda] = useState<Demanda | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -60,6 +62,30 @@ export default function HistoricoPage() {
     setDespesas((prev) =>
       prev.map((d) =>
         d.id === paraConfirmar.id ? { ...d, lancado_no_sistema: novoStatus } : d,
+      ),
+    );
+  }
+
+  async function confirmarExcluir() {
+    if (!paraExcluir) return;
+    const { error } = await supabase.from("despesas").delete().eq("id", paraExcluir.id);
+    setParaExcluir(null);
+    if (error) return;
+    setDespesas((prev) => prev.filter((d) => d.id !== paraExcluir.id));
+  }
+
+  async function confirmarToggleConcluido() {
+    if (!paraConfirmarDemanda) return;
+    const novoStatus = !paraConfirmarDemanda.concluido;
+    const { error } = await supabase
+      .from("demandas")
+      .update({ concluido: novoStatus })
+      .eq("id", paraConfirmarDemanda.id);
+    setParaConfirmarDemanda(null);
+    if (error) return;
+    setDemandas((prev) =>
+      prev.map((d) =>
+        d.id === paraConfirmarDemanda.id ? { ...d, concluido: novoStatus } : d,
       ),
     );
   }
@@ -196,11 +222,42 @@ export default function HistoricoPage() {
                       <div className="shrink-0 text-right">
                         <p className="text-xs text-muted">{formatTime(item.createdAt)}</p>
                         {item.tipo === "despesa" ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setParaConfirmar(
+                                  despesas.find((d) => d.id === item.id) ?? null,
+                                )
+                              }
+                              className={`mt-1 rounded-full border px-2 py-0.5 text-xs font-bold uppercase ${
+                                item.status.done
+                                  ? "border-success text-success"
+                                  : "border-border text-muted"
+                              }`}
+                            >
+                              {item.status.label}
+                            </button>
+                            {item.status.done && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setParaExcluir(
+                                    despesas.find((d) => d.id === item.id) ?? null,
+                                  )
+                                }
+                                className="mt-1 block text-xs font-bold uppercase text-danger"
+                              >
+                                Excluir
+                              </button>
+                            )}
+                          </>
+                        ) : (
                           <button
                             type="button"
                             onClick={() =>
-                              setParaConfirmar(
-                                despesas.find((d) => d.id === item.id) ?? null,
+                              setParaConfirmarDemanda(
+                                demandas.find((d) => d.id === item.id) ?? null,
                               )
                             }
                             className={`mt-1 rounded-full border px-2 py-0.5 text-xs font-bold uppercase ${
@@ -211,14 +268,6 @@ export default function HistoricoPage() {
                           >
                             {item.status.label}
                           </button>
-                        ) : (
-                          <p
-                            className={`mt-1 text-xs font-bold uppercase ${
-                              item.status.done ? "text-success" : "text-muted"
-                            }`}
-                          >
-                            {item.status.label}
-                          </p>
                         )}
                       </div>
                     </div>
@@ -245,6 +294,28 @@ export default function HistoricoPage() {
         confirmLabel={paraConfirmar?.lancado_no_sistema ? "Sim, desmarcar" : "Sim, lançado"}
         onConfirm={confirmarToggleLancado}
         onCancel={() => setParaConfirmar(null)}
+      />
+
+      <ConfirmDialog
+        open={paraExcluir !== null}
+        title="Excluir despesa?"
+        description="Esta ação não pode ser desfeita."
+        confirmLabel="Sim, excluir"
+        onConfirm={confirmarExcluir}
+        onCancel={() => setParaExcluir(null)}
+      />
+
+      <ConfirmDialog
+        open={paraConfirmarDemanda !== null}
+        title={paraConfirmarDemanda?.concluido ? "Reabrir demanda?" : "Marcar como concluído?"}
+        description={
+          paraConfirmarDemanda?.concluido
+            ? "Esta demanda volta a ficar em aberto."
+            : "Confirma que esta demanda foi finalizada."
+        }
+        confirmLabel={paraConfirmarDemanda?.concluido ? "Sim, reabrir" : "Sim, concluído"}
+        onConfirm={confirmarToggleConcluido}
+        onCancel={() => setParaConfirmarDemanda(null)}
       />
     </div>
   );
