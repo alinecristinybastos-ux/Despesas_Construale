@@ -39,7 +39,7 @@ export default function DespesaPage() {
     });
     setSaving(false);
     if (error) {
-      setToast("Erro ao salvar. Tente novamente.");
+      setToast(`Erro ao salvar: ${error.message}`);
       return;
     }
     setToast("Despesa registrada.");

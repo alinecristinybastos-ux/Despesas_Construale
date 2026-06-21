@@ -40,7 +40,7 @@ export default function DemandaPage() {
     });
     setSaving(false);
     if (error) {
-      setToast("Erro ao salvar. Tente novamente.");
+      setToast(`Erro ao salvar: ${error.message}`);
       return;
     }
     setToast(concluido ? "Demanda registrada e concluída." : "Demanda registrada.");
