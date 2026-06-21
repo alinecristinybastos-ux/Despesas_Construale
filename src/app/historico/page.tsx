@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { supabase } from "@/lib/supabase";
 import {
   CATEGORIA_DESPESA_LABEL,
@@ -31,6 +32,7 @@ export default function HistoricoPage() {
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [busca, setBusca] = useState("");
   const [loading, setLoading] = useState(true);
+  const [paraConfirmar, setParaConfirmar] = useState<Despesa | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -45,6 +47,22 @@ export default function HistoricoPage() {
     }
     load();
   }, []);
+
+  async function confirmarToggleLancado() {
+    if (!paraConfirmar) return;
+    const novoStatus = !paraConfirmar.lancado_no_sistema;
+    const { error } = await supabase
+      .from("despesas")
+      .update({ lancado_no_sistema: novoStatus })
+      .eq("id", paraConfirmar.id);
+    setParaConfirmar(null);
+    if (error) return;
+    setDespesas((prev) =>
+      prev.map((d) =>
+        d.id === paraConfirmar.id ? { ...d, lancado_no_sistema: novoStatus } : d,
+      ),
+    );
+  }
 
   const itens: ItemHistorico[] = useMemo(() => {
     const itensDespesa: ItemHistorico[] = despesas.map((d) => ({
@@ -177,13 +195,31 @@ export default function HistoricoPage() {
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="text-xs text-muted">{formatTime(item.createdAt)}</p>
-                        <p
-                          className={`mt-1 text-xs font-bold uppercase ${
-                            item.status.done ? "text-success" : "text-muted"
-                          }`}
-                        >
-                          {item.status.label}
-                        </p>
+                        {item.tipo === "despesa" ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setParaConfirmar(
+                                despesas.find((d) => d.id === item.id) ?? null,
+                              )
+                            }
+                            className={`mt-1 rounded-full border px-2 py-0.5 text-xs font-bold uppercase ${
+                              item.status.done
+                                ? "border-success text-success"
+                                : "border-border text-muted"
+                            }`}
+                          >
+                            {item.status.label}
+                          </button>
+                        ) : (
+                          <p
+                            className={`mt-1 text-xs font-bold uppercase ${
+                              item.status.done ? "text-success" : "text-muted"
+                            }`}
+                          >
+                            {item.status.label}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </li>
@@ -193,6 +229,23 @@ export default function HistoricoPage() {
           ))}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={paraConfirmar !== null}
+        title={
+          paraConfirmar?.lancado_no_sistema
+            ? "Desmarcar lançamento?"
+            : "Marcar como lançado?"
+        }
+        description={
+          paraConfirmar?.lancado_no_sistema
+            ? "Esta despesa volta a ficar pendente de lançamento no sistema contábil."
+            : "Confirma que esta despesa já foi processada no sistema contábil."
+        }
+        confirmLabel={paraConfirmar?.lancado_no_sistema ? "Sim, desmarcar" : "Sim, lançado"}
+        onConfirm={confirmarToggleLancado}
+        onCancel={() => setParaConfirmar(null)}
+      />
     </div>
   );
 }

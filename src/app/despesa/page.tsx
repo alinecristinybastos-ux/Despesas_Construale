@@ -18,11 +18,11 @@ export default function DespesaPage() {
   const [valor, setValor] = useState("");
   const [categoria, setCategoria] = useState<CategoriaDespesa | null>(null);
   const [observacao, setObservacao] = useState("");
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [recentes, setRecentes] = useState<Despesa[]>([]);
   const [loadingRecentes, setLoadingRecentes] = useState(true);
+  const [paraConfirmar, setParaConfirmar] = useState<Despesa | null>(null);
 
   const valido = Number(valor.replace(",", ".")) > 0 && categoria !== null;
 
@@ -47,14 +47,14 @@ export default function DespesaPage() {
     setObservacao("");
   }
 
-  async function salvar(lancadoFinal: boolean) {
+  async function salvar() {
     if (!valido || !categoria) return;
     setSaving(true);
     const { error } = await supabase.from("despesas").insert({
       valor: Number(valor.replace(",", ".")),
       categoria,
       observacao: observacao.trim() || null,
-      lancado_no_sistema: lancadoFinal,
+      lancado_no_sistema: false,
     });
     setSaving(false);
     if (error) {
@@ -67,9 +67,23 @@ export default function DespesaPage() {
     setTimeout(() => setToast(null), 2500);
   }
 
-  function onLancadoClick() {
-    if (!valido) return;
-    setConfirmOpen(true);
+  async function confirmarToggleLancado() {
+    if (!paraConfirmar) return;
+    const novoStatus = !paraConfirmar.lancado_no_sistema;
+    const { error } = await supabase
+      .from("despesas")
+      .update({ lancado_no_sistema: novoStatus })
+      .eq("id", paraConfirmar.id);
+    setParaConfirmar(null);
+    if (error) {
+      setToast(`Erro ao atualizar: ${error.message}`);
+      return;
+    }
+    setRecentes((prev) =>
+      prev.map((d) =>
+        d.id === paraConfirmar.id ? { ...d, lancado_no_sistema: novoStatus } : d,
+      ),
+    );
   }
 
   return (
@@ -125,22 +139,14 @@ export default function DespesaPage() {
           />
         </div>
 
-        <div className="space-y-3 pb-6">
+        <div className="pb-6">
           <button
             type="button"
             disabled={!valido || saving}
-            onClick={() => salvar(false)}
+            onClick={() => salvar()}
             className="w-full rounded-xl bg-despesa py-4 text-base font-extrabold uppercase tracking-wide text-black disabled:opacity-40"
           >
             Salvar Despesa
-          </button>
-          <button
-            type="button"
-            disabled={!valido || saving}
-            onClick={onLancadoClick}
-            className="w-full rounded-xl border border-border bg-surface py-3 text-sm font-bold uppercase tracking-wide text-muted disabled:opacity-40"
-          >
-            Lançado no Sistema
           </button>
         </div>
 
@@ -176,13 +182,17 @@ export default function DespesaPage() {
                         {formatDateLabel(new Date(d.created_at))} ·{" "}
                         {formatTime(new Date(d.created_at))}
                       </p>
-                      <p
-                        className={`mt-1 text-xs font-bold uppercase ${
-                          d.lancado_no_sistema ? "text-success" : "text-muted"
+                      <button
+                        type="button"
+                        onClick={() => setParaConfirmar(d)}
+                        className={`mt-1 rounded-full border px-2 py-0.5 text-xs font-bold uppercase ${
+                          d.lancado_no_sistema
+                            ? "border-success text-success"
+                            : "border-border text-muted"
                         }`}
                       >
                         {d.lancado_no_sistema ? "Lançado" : "Pendente"}
-                      </p>
+                      </button>
                     </div>
                   </div>
                 </li>
@@ -193,15 +203,20 @@ export default function DespesaPage() {
       </div>
 
       <ConfirmDialog
-        open={confirmOpen}
-        title="Marcar como lançado?"
-        description="Confirma que esta despesa já foi processada no sistema contábil."
-        confirmLabel="Sim, lançado"
-        onConfirm={() => {
-          setConfirmOpen(false);
-          salvar(true);
-        }}
-        onCancel={() => setConfirmOpen(false)}
+        open={paraConfirmar !== null}
+        title={
+          paraConfirmar?.lancado_no_sistema
+            ? "Desmarcar lançamento?"
+            : "Marcar como lançado?"
+        }
+        description={
+          paraConfirmar?.lancado_no_sistema
+            ? "Esta despesa volta a ficar pendente de lançamento no sistema contábil."
+            : "Confirma que esta despesa já foi processada no sistema contábil."
+        }
+        confirmLabel={paraConfirmar?.lancado_no_sistema ? "Sim, desmarcar" : "Sim, lançado"}
+        onConfirm={confirmarToggleLancado}
+        onCancel={() => setParaConfirmar(null)}
       />
     </div>
   );
