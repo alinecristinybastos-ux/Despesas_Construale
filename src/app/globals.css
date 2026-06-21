@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+:root {
+  --background: #14161a;
+  --surface: #1d2024;
+  --surface-2: #25292e;
+  --border: #34393f;
+  --foreground: #f2f1ed;
+  --muted: #9aa0a6;
+  --despesa: #ff5a1f;
+  --despesa-dim: #4a2a16;
+  --demanda: #ffb300;
+  --demanda-dim: #4a3a10;
+  --danger: #e5484d;
+  --success: #3ba55d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-despesa: var(--despesa);
+  --color-despesa-dim: var(--despesa-dim);
+  --color-demanda: var(--demanda);
+  --color-demanda-dim: var(--demanda-dim);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --font-sans: var(--font-archivo);
+  --font-mono: var(--font-ticket);
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-archivo), Arial, Helvetica, sans-serif;
+}
+
+.font-ticket {
+  font-family: var(--font-ticket), "Courier New", monospace;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
