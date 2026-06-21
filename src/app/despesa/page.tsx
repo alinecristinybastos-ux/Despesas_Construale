@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import Chip from "@/components/Chip";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -10,7 +10,9 @@ import {
   CATEGORIAS_DESPESA,
   CATEGORIA_DESPESA_LABEL,
   type CategoriaDespesa,
+  type Despesa,
 } from "@/lib/types";
+import { formatCurrency, formatDateLabel, formatTime } from "@/lib/format";
 
 export default function DespesaPage() {
   const [valor, setValor] = useState("");
@@ -19,8 +21,25 @@ export default function DespesaPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [recentes, setRecentes] = useState<Despesa[]>([]);
+  const [loadingRecentes, setLoadingRecentes] = useState(true);
 
   const valido = Number(valor.replace(",", ".")) > 0 && categoria !== null;
+
+  async function carregarRecentes() {
+    setLoadingRecentes(true);
+    const { data } = await supabase
+      .from("despesas")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(20);
+    setRecentes((data as Despesa[]) ?? []);
+    setLoadingRecentes(false);
+  }
+
+  useEffect(() => {
+    carregarRecentes();
+  }, []);
 
   function resetForm() {
     setValor("");
@@ -44,6 +63,7 @@ export default function DespesaPage() {
     }
     setToast("Despesa registrada.");
     resetForm();
+    carregarRecentes();
     setTimeout(() => setToast(null), 2500);
   }
 
@@ -109,19 +129,66 @@ export default function DespesaPage() {
           <button
             type="button"
             disabled={!valido || saving}
-            onClick={onLancadoClick}
-            className="w-full rounded-xl bg-success py-4 text-base font-extrabold uppercase tracking-wide text-black disabled:opacity-40"
-          >
-            Lançado no Sistema
-          </button>
-          <button
-            type="button"
-            disabled={!valido || saving}
             onClick={() => salvar(false)}
             className="w-full rounded-xl bg-despesa py-4 text-base font-extrabold uppercase tracking-wide text-black disabled:opacity-40"
           >
             Salvar Despesa
           </button>
+          <button
+            type="button"
+            disabled={!valido || saving}
+            onClick={onLancadoClick}
+            className="w-full rounded-xl border border-border bg-surface py-3 text-sm font-bold uppercase tracking-wide text-muted disabled:opacity-40"
+          >
+            Lançado no Sistema
+          </button>
+        </div>
+
+        <div>
+          <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
+            Despesas recentes
+          </h2>
+          {loadingRecentes ? (
+            <p className="py-4 text-center text-sm text-muted">Carregando...</p>
+          ) : recentes.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted">
+              Nenhuma despesa registrada ainda.
+            </p>
+          ) : (
+            <ul className="space-y-2 pb-6">
+              {recentes.map((d) => (
+                <li
+                  key={d.id}
+                  className="rounded-xl border border-border bg-surface px-4 py-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-ticket font-bold">
+                        {formatCurrency(d.valor)}
+                      </p>
+                      <p className="mt-0.5 truncate text-sm text-muted">
+                        {CATEGORIA_DESPESA_LABEL[d.categoria]}
+                        {d.observacao ? ` · ${d.observacao}` : ""}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs text-muted">
+                        {formatDateLabel(new Date(d.created_at))} ·{" "}
+                        {formatTime(new Date(d.created_at))}
+                      </p>
+                      <p
+                        className={`mt-1 text-xs font-bold uppercase ${
+                          d.lancado_no_sistema ? "text-success" : "text-muted"
+                        }`}
+                      >
+                        {d.lancado_no_sistema ? "Lançado" : "Pendente"}
+                      </p>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
