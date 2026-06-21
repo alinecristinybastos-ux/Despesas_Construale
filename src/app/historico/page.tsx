@@ -238,19 +238,17 @@ export default function HistoricoPage() {
                             >
                               {item.status.label}
                             </button>
-                            {item.status.done && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setParaExcluir(
-                                    despesas.find((d) => d.id === item.id) ?? null,
-                                  )
-                                }
-                                className="mt-1 block text-xs font-bold uppercase text-danger"
-                              >
-                                Excluir
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setParaExcluir(
+                                  despesas.find((d) => d.id === item.id) ?? null,
+                                )
+                              }
+                              className="mt-1 block text-xs font-bold uppercase text-danger"
+                            >
+                              Excluir
+                            </button>
                           </>
                         ) : (
                           <button

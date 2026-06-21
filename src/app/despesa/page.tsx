@@ -207,15 +207,13 @@ export default function DespesaPage() {
                       >
                         {d.lancado_no_sistema ? "Lançado" : "Pendente"}
                       </button>
-                      {d.lancado_no_sistema && (
-                        <button
-                          type="button"
-                          onClick={() => setParaExcluir(d)}
-                          className="mt-1 block text-xs font-bold uppercase text-danger"
-                        >
-                          Excluir
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setParaExcluir(d)}
+                        className="mt-1 block text-xs font-bold uppercase text-danger"
+                      >
+                        Excluir
+                      </button>
                     </div>
                   </div>
                 </li>
