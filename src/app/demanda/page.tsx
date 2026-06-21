@@ -32,6 +32,7 @@ export default function DemandaPage() {
     const { data } = await supabase
       .from("demandas")
       .select("*")
+      .eq("concluido", false)
       .order("created_at", { ascending: false })
       .limit(20);
     setRecentes((data as Demanda[]) ?? []);
@@ -70,21 +71,18 @@ export default function DemandaPage() {
     setTimeout(() => setToast(null), 2500);
   }
 
-  async function confirmarToggleConcluido() {
+  async function confirmarConcluir() {
     if (!paraConfirmar) return;
-    const novoStatus = !paraConfirmar.concluido;
     const { error } = await supabase
       .from("demandas")
-      .update({ concluido: novoStatus })
+      .update({ concluido: true })
       .eq("id", paraConfirmar.id);
     setParaConfirmar(null);
     if (error) {
       setToast(`Erro ao atualizar: ${error.message}`);
       return;
     }
-    setRecentes((prev) =>
-      prev.map((d) => (d.id === paraConfirmar.id ? { ...d, concluido: novoStatus } : d)),
-    );
+    setRecentes((prev) => prev.filter((d) => d.id !== paraConfirmar.id));
   }
 
   return (
@@ -195,13 +193,9 @@ export default function DemandaPage() {
                       <button
                         type="button"
                         onClick={() => setParaConfirmar(d)}
-                        className={`mt-1 rounded-full border px-2 py-0.5 text-xs font-bold uppercase ${
-                          d.concluido
-                            ? "border-success text-success"
-                            : "border-border text-muted"
-                        }`}
+                        className="mt-1 rounded-full border border-border px-2 py-0.5 text-xs font-bold uppercase text-muted"
                       >
-                        {d.concluido ? "Concluído" : "Em aberto"}
+                        Em aberto
                       </button>
                     </div>
                   </div>
@@ -214,14 +208,10 @@ export default function DemandaPage() {
 
       <ConfirmDialog
         open={paraConfirmar !== null}
-        title={paraConfirmar?.concluido ? "Reabrir demanda?" : "Marcar como concluído?"}
-        description={
-          paraConfirmar?.concluido
-            ? "Esta demanda volta a ficar em aberto."
-            : "Confirma que esta demanda foi finalizada."
-        }
-        confirmLabel={paraConfirmar?.concluido ? "Sim, reabrir" : "Sim, concluído"}
-        onConfirm={confirmarToggleConcluido}
+        title="Marcar como concluído?"
+        description="Confirma que esta demanda foi finalizada. Ela saíra desta aba e passará a aparecer apenas no Histórico."
+        confirmLabel="Sim, concluído"
+        onConfirm={confirmarConcluir}
         onCancel={() => setParaConfirmar(null)}
       />
     </div>
