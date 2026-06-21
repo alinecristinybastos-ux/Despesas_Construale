@@ -1,11 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import {
-  CATEGORIA_DESPESA_LABEL,
-  SERVICO_DEMANDA_LABEL,
-  type Despesa,
-  type Demanda,
-} from "./types";
+import { CATEGORIA_DESPESA_LABEL, type Despesa } from "./types";
 import { formatCurrency } from "./format";
 
 function downloadBlob(content: string, filename: string, mime: string) {
@@ -23,40 +18,20 @@ function csvEscape(value: string): string {
   return value;
 }
 
-export function exportCsv(despesas: Despesa[], demandas: Demanda[]) {
+export function exportCsv(despesas: Despesa[]) {
   const lines: string[] = [];
-  lines.push("tipo,data,hora,valor,categoria_servico,cliente,observacao,status");
+  lines.push("data,hora,valor,categoria,observacao,status");
 
   for (const d of despesas) {
     const date = new Date(d.created_at);
     lines.push(
       [
-        "despesa",
         date.toLocaleDateString("pt-BR"),
         date.toLocaleTimeString("pt-BR"),
         d.valor.toFixed(2).replace(".", ","),
         CATEGORIA_DESPESA_LABEL[d.categoria],
-        "",
         d.observacao ?? "",
         d.lancado_no_sistema ? "Lançado" : "Pendente",
-      ]
-        .map((v) => csvEscape(String(v)))
-        .join(","),
-    );
-  }
-
-  for (const d of demandas) {
-    const date = new Date(d.created_at);
-    lines.push(
-      [
-        "demanda",
-        date.toLocaleDateString("pt-BR"),
-        date.toLocaleTimeString("pt-BR"),
-        "",
-        SERVICO_DEMANDA_LABEL[d.servico],
-        d.cliente,
-        d.observacao ?? "",
-        d.concluido ? "Concluído" : "Em aberto",
       ]
         .map((v) => csvEscape(String(v)))
         .join(","),
@@ -73,7 +48,6 @@ export function exportCsv(despesas: Despesa[], demandas: Demanda[]) {
 export function exportPdf(
   periodoLabel: string,
   despesas: Despesa[],
-  demandas: Demanda[],
   totalPorCategoria: { categoria: string; total: number }[],
 ) {
   const doc = new jsPDF();
@@ -93,11 +67,6 @@ export function exportPdf(
     body: [
       ["Total de despesas", formatCurrency(totalDespesas)],
       ["Despesas pendentes de lançamento", String(pendentes)],
-      ["Demandas registradas", String(demandas.length)],
-      [
-        "Demandas concluídas",
-        String(demandas.filter((d) => d.concluido).length),
-      ],
     ],
   });
 
@@ -113,17 +82,6 @@ export function exportPdf(
       formatCurrency(d.valor),
       CATEGORIA_DESPESA_LABEL[d.categoria],
       d.lancado_no_sistema ? "Lançado" : "Pendente",
-      d.observacao ?? "",
-    ]),
-  });
-
-  autoTable(doc, {
-    head: [["Data", "Cliente", "Serviço", "Status", "Observação"]],
-    body: demandas.map((d) => [
-      new Date(d.created_at).toLocaleString("pt-BR"),
-      d.cliente,
-      SERVICO_DEMANDA_LABEL[d.servico],
-      d.concluido ? "Concluído" : "Em aberto",
       d.observacao ?? "",
     ]),
   });
