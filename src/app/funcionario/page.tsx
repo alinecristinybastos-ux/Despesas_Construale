@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import AmountDialog from "@/components/AmountDialog";
+import DateDialog from "@/components/DateDialog";
 import Toast from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import type { Funcionario, PagamentoFuncionario, FaltaFuncionario } from "@/lib/types";
@@ -21,9 +22,19 @@ export default function FuncionarioPage() {
   const [faltas, setFaltas] = useState<FaltaFuncionario[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [expandidoId, setExpandidoId] = useState<string | null>(null);
+
   const [paraPagamento, setParaPagamento] = useState<Funcionario | null>(null);
   const [valorPagamento, setValorPagamento] = useState("");
   const [paraFalta, setParaFalta] = useState<Funcionario | null>(null);
+
+  const [paraEditarPagamento, setParaEditarPagamento] = useState<PagamentoFuncionario | null>(null);
+  const [valorEditado, setValorEditado] = useState("");
+  const [paraExcluirPagamento, setParaExcluirPagamento] = useState<PagamentoFuncionario | null>(null);
+
+  const [paraEditarFalta, setParaEditarFalta] = useState<FaltaFuncionario | null>(null);
+  const [dataEditada, setDataEditada] = useState("");
+  const [paraExcluirFalta, setParaExcluirFalta] = useState<FaltaFuncionario | null>(null);
 
   const valido = nome.trim().length > 0 && dataEntrada !== "" && Number(salario.replace(",", ".")) > 0;
 
@@ -99,6 +110,74 @@ export default function FuncionarioPage() {
       return;
     }
     setToast("Falta registrada.");
+    carregarTudo();
+    setTimeout(() => setToast(null), 2500);
+  }
+
+  async function confirmarEditarPagamento() {
+    if (!paraEditarPagamento) return;
+    const valor = Number(valorEditado.replace(",", "."));
+    if (!(valor > 0)) return;
+    const { error } = await supabase
+      .from("pagamentos_funcionario")
+      .update({ valor })
+      .eq("id", paraEditarPagamento.id);
+    setParaEditarPagamento(null);
+    setValorEditado("");
+    if (error) {
+      setToast(`Erro ao editar pagamento: ${error.message}`);
+      return;
+    }
+    setToast("Pagamento atualizado.");
+    carregarTudo();
+    setTimeout(() => setToast(null), 2500);
+  }
+
+  async function confirmarExcluirPagamento() {
+    if (!paraExcluirPagamento) return;
+    const { error } = await supabase
+      .from("pagamentos_funcionario")
+      .delete()
+      .eq("id", paraExcluirPagamento.id);
+    setParaExcluirPagamento(null);
+    if (error) {
+      setToast(`Erro ao excluir pagamento: ${error.message}`);
+      return;
+    }
+    setToast("Pagamento excluído.");
+    carregarTudo();
+    setTimeout(() => setToast(null), 2500);
+  }
+
+  async function confirmarEditarFalta() {
+    if (!paraEditarFalta || dataEditada === "") return;
+    const { error } = await supabase
+      .from("faltas_funcionario")
+      .update({ created_at: new Date(`${dataEditada}T12:00:00`).toISOString() })
+      .eq("id", paraEditarFalta.id);
+    setParaEditarFalta(null);
+    setDataEditada("");
+    if (error) {
+      setToast(`Erro ao editar falta: ${error.message}`);
+      return;
+    }
+    setToast("Falta atualizada.");
+    carregarTudo();
+    setTimeout(() => setToast(null), 2500);
+  }
+
+  async function confirmarExcluirFalta() {
+    if (!paraExcluirFalta) return;
+    const { error } = await supabase
+      .from("faltas_funcionario")
+      .delete()
+      .eq("id", paraExcluirFalta.id);
+    setParaExcluirFalta(null);
+    if (error) {
+      setToast(`Erro ao excluir falta: ${error.message}`);
+      return;
+    }
+    setToast("Falta excluída.");
     carregarTudo();
     setTimeout(() => setToast(null), 2500);
   }
@@ -183,7 +262,8 @@ export default function FuncionarioPage() {
                 const saldo = f.valor_salario - totalPagoMes;
                 const faltasMes = faltas.filter(
                   (fa) => fa.funcionario_id === f.id && isSameMonth(fa.created_at, hoje),
-                ).length;
+                );
+                const expandido = expandidoId === f.id;
 
                 return (
                   <li
@@ -206,9 +286,105 @@ export default function FuncionarioPage() {
                       </div>
                     </div>
 
-                    <p className="mt-2 text-xs text-muted">
-                      {faltasMes} {faltasMes === 1 ? "falta" : "faltas"} no mês
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setExpandidoId(expandido ? null : f.id)}
+                      className="mt-2 text-xs font-bold uppercase text-muted underline"
+                    >
+                      {faltasMes.length} {faltasMes.length === 1 ? "falta" : "faltas"} no
+                      mês · {expandido ? "ocultar lançamentos" : "ver lançamentos"}
+                    </button>
+
+                    {expandido && (
+                      <div className="mt-3 space-y-3 border-t border-border pt-3">
+                        <div>
+                          <p className="mb-1 text-xs font-bold uppercase text-muted">
+                            Pagamentos do mês
+                          </p>
+                          {pagamentosMes.length === 0 ? (
+                            <p className="text-xs text-muted">Nenhum pagamento no mês.</p>
+                          ) : (
+                            <ul className="space-y-1">
+                              {pagamentosMes.map((p) => (
+                                <li
+                                  key={p.id}
+                                  className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="font-ticket text-sm font-bold">
+                                      {formatCurrency(p.valor)}
+                                    </p>
+                                    <p className="text-xs text-muted">
+                                      {formatDateOnly(p.created_at.slice(0, 10))}
+                                    </p>
+                                  </div>
+                                  <div className="flex shrink-0 gap-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setParaEditarPagamento(p);
+                                        setValorEditado(String(p.valor).replace(".", ","));
+                                      }}
+                                      className="text-xs font-bold uppercase text-foreground"
+                                    >
+                                      Editar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setParaExcluirPagamento(p)}
+                                      className="text-xs font-bold uppercase text-danger"
+                                    >
+                                      Excluir
+                                    </button>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="mb-1 text-xs font-bold uppercase text-muted">
+                            Faltas do mês
+                          </p>
+                          {faltasMes.length === 0 ? (
+                            <p className="text-xs text-muted">Nenhuma falta no mês.</p>
+                          ) : (
+                            <ul className="space-y-1">
+                              {faltasMes.map((fa) => (
+                                <li
+                                  key={fa.id}
+                                  className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2"
+                                >
+                                  <p className="text-sm">
+                                    {formatDateOnly(fa.created_at.slice(0, 10))}
+                                  </p>
+                                  <div className="flex shrink-0 gap-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setParaEditarFalta(fa);
+                                        setDataEditada(fa.created_at.slice(0, 10));
+                                      }}
+                                      className="text-xs font-bold uppercase text-foreground"
+                                    >
+                                      Editar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setParaExcluirFalta(fa)}
+                                      className="text-xs font-bold uppercase text-danger"
+                                    >
+                                      Excluir
+                                    </button>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="mt-3 flex gap-2">
                       <button
@@ -257,6 +433,52 @@ export default function FuncionarioPage() {
         confirmLabel="Sim, registrar"
         onConfirm={confirmarFalta}
         onCancel={() => setParaFalta(null)}
+      />
+
+      <AmountDialog
+        open={paraEditarPagamento !== null}
+        title="Editar pagamento"
+        description="Ajuste o valor deste pagamento."
+        value={valorEditado}
+        onValueChange={setValorEditado}
+        confirmLabel="Salvar alteração"
+        onConfirm={confirmarEditarPagamento}
+        onCancel={() => {
+          setParaEditarPagamento(null);
+          setValorEditado("");
+        }}
+      />
+
+      <ConfirmDialog
+        open={paraExcluirPagamento !== null}
+        title="Excluir pagamento?"
+        description="Esta ação não pode ser desfeita."
+        confirmLabel="Sim, excluir"
+        onConfirm={confirmarExcluirPagamento}
+        onCancel={() => setParaExcluirPagamento(null)}
+      />
+
+      <DateDialog
+        open={paraEditarFalta !== null}
+        title="Editar falta"
+        description="Ajuste a data desta falta."
+        value={dataEditada}
+        onValueChange={setDataEditada}
+        confirmLabel="Salvar alteração"
+        onConfirm={confirmarEditarFalta}
+        onCancel={() => {
+          setParaEditarFalta(null);
+          setDataEditada("");
+        }}
+      />
+
+      <ConfirmDialog
+        open={paraExcluirFalta !== null}
+        title="Excluir falta?"
+        description="Esta ação não pode ser desfeita."
+        confirmLabel="Sim, excluir"
+        onConfirm={confirmarExcluirFalta}
+        onCancel={() => setParaExcluirFalta(null)}
       />
     </div>
   );
