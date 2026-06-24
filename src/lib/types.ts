@@ -56,3 +56,26 @@ export interface Demanda {
   concluido: boolean;
   created_at: string;
 }
+
+export interface Funcionario {
+  id: string;
+  nome: string;
+  data_entrada: string;
+  valor_salario: number;
+  created_at: string;
+}
+
+export interface PagamentoFuncionario {
+  id: string;
+  funcionario_id: string;
+  valor: number;
+  observacao: string | null;
+  created_at: string;
+}
+
+export interface FaltaFuncionario {
+  id: string;
+  funcionario_id: string;
+  observacao: string | null;
+  created_at: string;
+}

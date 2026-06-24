@@ -36,3 +36,13 @@ export function formatTime(date: Date): string {
 export function dayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
+
+export function formatDateOnly(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+export function isSameMonth(dateStr: string, ref: Date): boolean {
+  const date = new Date(dateStr);
+  return date.getFullYear() === ref.getFullYear() && date.getMonth() === ref.getMonth();
+}
