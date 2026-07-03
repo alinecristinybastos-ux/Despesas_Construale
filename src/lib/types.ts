@@ -79,3 +79,35 @@ export interface FaltaFuncionario {
   observacao: string | null;
   created_at: string;
 }
+
+export interface Venda {
+  id: string;
+  numero: number;
+  vendedor: string;
+  cliente: string;
+  valor: number;
+  valorPago: number;
+  statusPagamento: "a_receber" | "recebido";
+  data: string; // YYYY-MM-DD
+  hora: string;
+  obs: string;
+}
+
+export interface PagamentoServico {
+  id: string;
+  valor: number;
+  data: string; // YYYY-MM-DD
+}
+
+export interface Servico {
+  id: string;
+  vendedor: string;
+  tipo: string;
+  cliente: string;
+  tipoCobranca: "empreitada" | "viagem";
+  valor: number;
+  valorViagem: number;
+  dataInicio: string;
+  status: string;
+  pagamentos: PagamentoServico[];
+}
