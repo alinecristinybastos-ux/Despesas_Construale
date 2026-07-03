@@ -14,10 +14,15 @@ import {
 } from "@/lib/types";
 import { formatCurrency, formatDateLabel, formatTime } from "@/lib/format";
 
+function hojeISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function DespesaPage() {
   const [valor, setValor] = useState("");
   const [categoria, setCategoria] = useState<CategoriaDespesa | null>(null);
   const [observacao, setObservacao] = useState("");
+  const [dataDespesa, setDataDespesa] = useState(hojeISO);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [recentes, setRecentes] = useState<Despesa[]>([]);
@@ -46,6 +51,7 @@ export default function DespesaPage() {
     setValor("");
     setCategoria(null);
     setObservacao("");
+    setDataDespesa(hojeISO());
   }
 
   async function salvar() {
@@ -56,6 +62,7 @@ export default function DespesaPage() {
       categoria,
       observacao: observacao.trim() || null,
       lancado_no_sistema: false,
+      created_at: new Date(`${dataDespesa}T12:00:00`).toISOString(),
     });
     setSaving(false);
     if (error) {
@@ -150,6 +157,18 @@ export default function DespesaPage() {
             rows={3}
             placeholder="Detalhes adicionais..."
             className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground placeholder:text-muted focus:border-despesa focus:outline-none"
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">
+            Data da despesa
+          </label>
+          <input
+            type="date"
+            value={dataDespesa}
+            onChange={(e) => setDataDespesa(e.target.value)}
+            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground focus:border-despesa focus:outline-none"
           />
         </div>
 
