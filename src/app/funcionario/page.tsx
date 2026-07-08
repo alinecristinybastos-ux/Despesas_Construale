@@ -47,6 +47,9 @@ export default function FuncionarioPage() {
   const [dataEditada, setDataEditada] = useState("");
   const [paraExcluirFalta, setParaExcluirFalta] = useState<FaltaFuncionario | null>(null);
 
+  const [paraEditarDataPagamento, setParaEditarDataPagamento] = useState<PagamentoFuncionario | null>(null);
+  const [dataEditadaPagamento, setDataEditadaPagamento] = useState("");
+
   const valido = nome.trim().length > 0 && dataEntrada !== "" && Number(salario.replace(",", ".")) > 0;
 
   function refMes() {
@@ -144,6 +147,16 @@ export default function FuncionarioPage() {
     showToast("Pagamento excluído."); carregarTudo();
   }
 
+  async function confirmarEditarDataPagamento() {
+    if (!paraEditarDataPagamento || dataEditadaPagamento === "") return;
+    const { error } = await supabase.from("pagamentos_funcionario")
+      .update({ created_at: new Date(`${dataEditadaPagamento}T12:00:00`).toISOString() })
+      .eq("id", paraEditarDataPagamento.id);
+    setParaEditarDataPagamento(null); setDataEditadaPagamento("");
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Data do pagamento atualizada."); carregarTudo();
+  }
+
   async function confirmarEditarFalta() {
     if (!paraEditarFalta || dataEditada === "") return;
     const { error } = await supabase.from("faltas_funcionario")
@@ -179,6 +192,10 @@ export default function FuncionarioPage() {
   }
 
   const totalFolha = funcionarios.reduce((acc, f) => acc + dadosMes(f).saldoMes, 0);
+
+  const nomeMes = new Date(anoSel, mesSel, 1)
+    .toLocaleDateString("pt-BR", { month: "long" })
+    .replace(/^\w/, (c) => c.toUpperCase());
 
   return (
     <div>
@@ -291,7 +308,7 @@ export default function FuncionarioPage() {
                     <div className="mt-3 grid grid-cols-2 gap-2">
                       {/* 1ª Quinzena */}
                       <div className={`rounded-xl border p-3 ${saldoQ1 <= 0 ? "border-success/40 bg-success/10" : "border-border bg-surface-2"}`}>
-                        <p className="text-[10px] font-extrabold uppercase text-muted">1ª Quinzena</p>
+                        <p className="text-[10px] font-extrabold uppercase text-muted">1ª Quinzena {nomeMes}</p>
                         <p className="text-[10px] text-muted">Venc. dia 01</p>
                         <p className="mt-1 font-ticket text-xs">Meta: {formatCurrency(metaQ)}</p>
                         <p className="font-ticket text-xs text-success">Pago: {formatCurrency(pagoQ1)}</p>
@@ -304,7 +321,7 @@ export default function FuncionarioPage() {
 
                       {/* 2ª Quinzena */}
                       <div className={`rounded-xl border p-3 ${saldoQ2 <= 0 ? "border-success/40 bg-success/10" : "border-border bg-surface-2"}`}>
-                        <p className="text-[10px] font-extrabold uppercase text-muted">2ª Quinzena</p>
+                        <p className="text-[10px] font-extrabold uppercase text-muted">2ª Quinzena {nomeMes}</p>
                         <p className="text-[10px] text-muted">Venc. dia 15</p>
                         <p className="mt-1 font-ticket text-xs">Meta: {formatCurrency(metaQ)}</p>
                         <p className="font-ticket text-xs text-success">Pago: {formatCurrency(pagoQ2)}</p>
@@ -341,6 +358,8 @@ export default function FuncionarioPage() {
                                   <div className="flex gap-3">
                                     <button type="button" onClick={() => { setParaEditarPagamento(p); setValorEditado(String(p.valor).replace(".", ",")); }}
                                       className="text-xs font-bold uppercase text-foreground">Editar</button>
+                                    <button type="button" onClick={() => { setParaEditarDataPagamento(p); setDataEditadaPagamento(p.created_at.slice(0, 10)); }}
+                                      className="text-xs font-bold uppercase text-muted">Data</button>
                                     <button type="button" onClick={() => setParaExcluirPagamento(p)}
                                       className="text-xs font-bold uppercase text-danger">Excluir</button>
                                   </div>
@@ -366,6 +385,8 @@ export default function FuncionarioPage() {
                                   <div className="flex gap-3">
                                     <button type="button" onClick={() => { setParaEditarPagamento(p); setValorEditado(String(p.valor).replace(".", ",")); }}
                                       className="text-xs font-bold uppercase text-foreground">Editar</button>
+                                    <button type="button" onClick={() => { setParaEditarDataPagamento(p); setDataEditadaPagamento(p.created_at.slice(0, 10)); }}
+                                      className="text-xs font-bold uppercase text-muted">Data</button>
                                     <button type="button" onClick={() => setParaExcluirPagamento(p)}
                                       className="text-xs font-bold uppercase text-danger">Excluir</button>
                                   </div>
@@ -460,6 +481,17 @@ export default function FuncionarioPage() {
         confirmLabel="Sim, excluir"
         onConfirm={confirmarExcluirPagamento}
         onCancel={() => setParaExcluirPagamento(null)}
+      />
+
+      <DateDialog
+        open={paraEditarDataPagamento !== null}
+        title="Editar data do pagamento"
+        description="Ajuste a data deste lançamento."
+        value={dataEditadaPagamento}
+        onValueChange={setDataEditadaPagamento}
+        confirmLabel="Salvar data"
+        onConfirm={confirmarEditarDataPagamento}
+        onCancel={() => { setParaEditarDataPagamento(null); setDataEditadaPagamento(""); }}
       />
 
       <DateDialog
