@@ -8,7 +8,8 @@ create table if not exists public.despesas (
   valor numeric(10,2) not null check (valor > 0),
   categoria text not null check (categoria in (
     'COMBUSTIVEL', 'ALIMENTACAO', 'MAO_DE_OBRA', 'MANUTENCAO_VEICULOS',
-    'PRODUTOS', 'VALE_FUNCIONARIO', 'DIVERSOS'
+    'PRODUTOS', 'VALE_FUNCIONARIO', 'DIVERSOS',
+    'LICENCIAMENTOS', 'TARIFAS_JUROS', 'DESPESAS_PESSOAIS', 'CONTAS_FX_PESS'
   )),
   observacao text,
   lancado_no_sistema boolean not null default false,

@@ -6,6 +6,10 @@ export const CATEGORIAS_DESPESA = [
   "PRODUTOS",
   "VALE_FUNCIONARIO",
   "DIVERSOS",
+  "LICENCIAMENTOS",
+  "TARIFAS_JUROS",
+  "DESPESAS_PESSOAIS",
+  "CONTAS_FX_PESS",
 ] as const;
 
 export type CategoriaDespesa = (typeof CATEGORIAS_DESPESA)[number];
@@ -18,6 +22,10 @@ export const CATEGORIA_DESPESA_LABEL: Record<CategoriaDespesa, string> = {
   PRODUTOS: "Produtos",
   VALE_FUNCIONARIO: "Vale Funcionário",
   DIVERSOS: "Diversos",
+  LICENCIAMENTOS: "Licenciamentos",
+  TARIFAS_JUROS: "Tarifas/Juros",
+  DESPESAS_PESSOAIS: "Despesas Pessoais",
+  CONTAS_FX_PESS: "Contas Fx Pess.",
 };
 
 export const SERVICOS_DEMANDA = [
