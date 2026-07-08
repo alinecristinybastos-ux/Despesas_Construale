@@ -283,8 +283,29 @@ export default function FuncionarioPage() {
             {/* Cards individuais */}
             <ul className="space-y-4">
               {funcionarios.map((f) => {
-                const { pagsMes, pagsQ1, pagsQ2, faltasMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, saldoMes } = dadosMes(f);
-                const expandido = expandidoId === f.id;
+                const { pagsQ1, pagsQ2, faltasMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, saldoMes } = dadosMes(f);
+                const mostrarFaltas = expandidoId === f.id;
+
+                function PagamentoItem({ p }: { p: PagamentoFuncionario }) {
+                  return (
+                    <li className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2">
+                      <div>
+                        <p className="font-ticket text-sm font-bold">{formatCurrency(p.valor)}</p>
+                        <p className="text-xs text-muted">{formatDateOnly(p.created_at.slice(0, 10))}</p>
+                      </div>
+                      <div className="flex gap-3">
+                        <button type="button"
+                          onClick={() => { setParaEditarPagamento(p); setValorEditado(String(p.valor).replace(".", ",")); }}
+                          className="text-xs font-bold uppercase text-foreground">Editar</button>
+                        <button type="button"
+                          onClick={() => { setParaEditarDataPagamento(p); setDataEditadaPagamento(p.created_at.slice(0, 10)); }}
+                          className="text-xs font-bold uppercase text-muted">Data</button>
+                        <button type="button" onClick={() => setParaExcluirPagamento(p)}
+                          className="text-xs font-bold uppercase text-danger">Excluir</button>
+                      </div>
+                    </li>
+                  );
+                }
 
                 return (
                   <li key={f.id} className="rounded-xl border border-border bg-surface px-4 py-4">
@@ -304,120 +325,71 @@ export default function FuncionarioPage() {
                       </div>
                     </div>
 
-                    {/* Quinzenas */}
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      {/* 1ª Quinzena */}
-                      <div className={`rounded-xl border p-3 ${saldoQ1 <= 0 ? "border-success/40 bg-success/10" : "border-border bg-surface-2"}`}>
-                        <p className="text-[10px] font-extrabold uppercase text-muted">1ª Quinzena {nomeMes}</p>
-                        <p className="text-[10px] text-muted">Venc. dia 01</p>
-                        <p className="mt-1 font-ticket text-xs">Meta: {formatCurrency(metaQ)}</p>
-                        <p className="font-ticket text-xs text-success">Pago: {formatCurrency(pagoQ1)}</p>
-                        {saldoQ1 > 0 ? (
-                          <p className="font-ticket text-xs font-bold text-danger">Falta: {formatCurrency(saldoQ1)}</p>
-                        ) : (
-                          <p className="text-xs font-bold text-success">✓ Quitado</p>
-                        )}
+                    {/* 1ª Quinzena */}
+                    <div className={`mt-3 rounded-xl border p-3 ${saldoQ1 <= 0 ? "border-success/40 bg-success/10" : "border-border bg-surface-2"}`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] font-extrabold uppercase text-muted">1ª Quinzena {nomeMes}</p>
+                          <p className="text-[10px] text-muted">Venc. dia 01</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-ticket text-xs">Meta: {formatCurrency(metaQ)}</p>
+                          <p className="font-ticket text-xs text-success">Pago: {formatCurrency(pagoQ1)}</p>
+                          {saldoQ1 > 0
+                            ? <p className="font-ticket text-xs font-bold text-danger">Falta: {formatCurrency(saldoQ1)}</p>
+                            : <p className="text-xs font-bold text-success">✓ Quitado</p>}
+                        </div>
                       </div>
-
-                      {/* 2ª Quinzena */}
-                      <div className={`rounded-xl border p-3 ${saldoQ2 <= 0 ? "border-success/40 bg-success/10" : "border-border bg-surface-2"}`}>
-                        <p className="text-[10px] font-extrabold uppercase text-muted">2ª Quinzena {nomeMes}</p>
-                        <p className="text-[10px] text-muted">Venc. dia 15</p>
-                        <p className="mt-1 font-ticket text-xs">Meta: {formatCurrency(metaQ)}</p>
-                        <p className="font-ticket text-xs text-success">Pago: {formatCurrency(pagoQ2)}</p>
-                        {saldoQ2 > 0 ? (
-                          <p className="font-ticket text-xs font-bold text-danger">Falta: {formatCurrency(saldoQ2)}</p>
-                        ) : (
-                          <p className="text-xs font-bold text-success">✓ Quitado</p>
-                        )}
-                      </div>
+                      {pagsQ1.length > 0 && (
+                        <ul className="mt-2 space-y-1 border-t border-border/40 pt-2">
+                          {pagsQ1.map((p) => <PagamentoItem key={p.id} p={p} />)}
+                        </ul>
+                      )}
                     </div>
 
-                    {/* Faltas e lançamentos */}
-                    <button type="button" onClick={() => setExpandidoId(expandido ? null : f.id)}
-                      className="mt-3 text-xs font-bold uppercase text-muted underline">
-                      {faltasMes.length} {faltasMes.length === 1 ? "falta" : "faltas"} ·{" "}
-                      {expandido ? "ocultar lançamentos" : "ver lançamentos"}
-                    </button>
-
-                    {expandido && (
-                      <div className="mt-3 space-y-3 border-t border-border pt-3">
-                        {/* Pagamentos 1ª Q */}
+                    {/* 2ª Quinzena */}
+                    <div className={`mt-2 rounded-xl border p-3 ${saldoQ2 <= 0 ? "border-success/40 bg-success/10" : "border-border bg-surface-2"}`}>
+                      <div className="flex items-center justify-between">
                         <div>
-                          <p className="mb-1 text-xs font-bold uppercase text-muted">Pagamentos 1ª Quinzena</p>
-                          {pagsQ1.length === 0 ? (
-                            <p className="text-xs text-muted">Nenhum pagamento.</p>
-                          ) : (
-                            <ul className="space-y-1">
-                              {pagsQ1.map((p) => (
-                                <li key={p.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2">
-                                  <div>
-                                    <p className="font-ticket text-sm font-bold">{formatCurrency(p.valor)}</p>
-                                    <p className="text-xs text-muted">{formatDateOnly(p.created_at.slice(0, 10))}</p>
-                                  </div>
-                                  <div className="flex gap-3">
-                                    <button type="button" onClick={() => { setParaEditarPagamento(p); setValorEditado(String(p.valor).replace(".", ",")); }}
-                                      className="text-xs font-bold uppercase text-foreground">Editar</button>
-                                    <button type="button" onClick={() => { setParaEditarDataPagamento(p); setDataEditadaPagamento(p.created_at.slice(0, 10)); }}
-                                      className="text-xs font-bold uppercase text-muted">Data</button>
-                                    <button type="button" onClick={() => setParaExcluirPagamento(p)}
-                                      className="text-xs font-bold uppercase text-danger">Excluir</button>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                          <p className="text-[10px] font-extrabold uppercase text-muted">2ª Quinzena {nomeMes}</p>
+                          <p className="text-[10px] text-muted">Venc. dia 15</p>
                         </div>
-
-                        {/* Pagamentos 2ª Q */}
-                        <div>
-                          <p className="mb-1 text-xs font-bold uppercase text-muted">Pagamentos 2ª Quinzena</p>
-                          {pagsQ2.length === 0 ? (
-                            <p className="text-xs text-muted">Nenhum pagamento.</p>
-                          ) : (
-                            <ul className="space-y-1">
-                              {pagsQ2.map((p) => (
-                                <li key={p.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2">
-                                  <div>
-                                    <p className="font-ticket text-sm font-bold">{formatCurrency(p.valor)}</p>
-                                    <p className="text-xs text-muted">{formatDateOnly(p.created_at.slice(0, 10))}</p>
-                                  </div>
-                                  <div className="flex gap-3">
-                                    <button type="button" onClick={() => { setParaEditarPagamento(p); setValorEditado(String(p.valor).replace(".", ",")); }}
-                                      className="text-xs font-bold uppercase text-foreground">Editar</button>
-                                    <button type="button" onClick={() => { setParaEditarDataPagamento(p); setDataEditadaPagamento(p.created_at.slice(0, 10)); }}
-                                      className="text-xs font-bold uppercase text-muted">Data</button>
-                                    <button type="button" onClick={() => setParaExcluirPagamento(p)}
-                                      className="text-xs font-bold uppercase text-danger">Excluir</button>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-
-                        {/* Faltas */}
-                        <div>
-                          <p className="mb-1 text-xs font-bold uppercase text-muted">Faltas do mês</p>
-                          {faltasMes.length === 0 ? (
-                            <p className="text-xs text-muted">Nenhuma falta.</p>
-                          ) : (
-                            <ul className="space-y-1">
-                              {faltasMes.map((fa) => (
-                                <li key={fa.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2">
-                                  <p className="text-sm">{formatDateOnly(fa.created_at.slice(0, 10))}</p>
-                                  <div className="flex gap-3">
-                                    <button type="button" onClick={() => { setParaEditarFalta(fa); setDataEditada(fa.created_at.slice(0, 10)); }}
-                                      className="text-xs font-bold uppercase text-foreground">Editar</button>
-                                    <button type="button" onClick={() => setParaExcluirFalta(fa)}
-                                      className="text-xs font-bold uppercase text-danger">Excluir</button>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
+                        <div className="text-right">
+                          <p className="font-ticket text-xs">Meta: {formatCurrency(metaQ)}</p>
+                          <p className="font-ticket text-xs text-success">Pago: {formatCurrency(pagoQ2)}</p>
+                          {saldoQ2 > 0
+                            ? <p className="font-ticket text-xs font-bold text-danger">Falta: {formatCurrency(saldoQ2)}</p>
+                            : <p className="text-xs font-bold text-success">✓ Quitado</p>}
                         </div>
                       </div>
+                      {pagsQ2.length > 0 && (
+                        <ul className="mt-2 space-y-1 border-t border-border/40 pt-2">
+                          {pagsQ2.map((p) => <PagamentoItem key={p.id} p={p} />)}
+                        </ul>
+                      )}
+                    </div>
+
+                    {/* Faltas (toggle) */}
+                    <button type="button" onClick={() => setExpandidoId(mostrarFaltas ? null : f.id)}
+                      className="mt-3 text-xs font-bold uppercase text-muted underline">
+                      {faltasMes.length} {faltasMes.length === 1 ? "falta" : "faltas"}{" "}
+                      {mostrarFaltas ? "▲" : "▼"}
+                    </button>
+
+                    {mostrarFaltas && faltasMes.length > 0 && (
+                      <ul className="mt-2 space-y-1">
+                        {faltasMes.map((fa) => (
+                          <li key={fa.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2">
+                            <p className="text-sm">{formatDateOnly(fa.created_at.slice(0, 10))}</p>
+                            <div className="flex gap-3">
+                              <button type="button" onClick={() => { setParaEditarFalta(fa); setDataEditada(fa.created_at.slice(0, 10)); }}
+                                className="text-xs font-bold uppercase text-foreground">Editar</button>
+                              <button type="button" onClick={() => setParaExcluirFalta(fa)}
+                                className="text-xs font-bold uppercase text-danger">Excluir</button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
                     )}
 
                     {/* Botões de ação */}
