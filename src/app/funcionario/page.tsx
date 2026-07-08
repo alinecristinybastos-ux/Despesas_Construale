@@ -10,7 +10,18 @@ import { supabase } from "@/lib/supabase";
 import type { Funcionario, PagamentoFuncionario, FaltaFuncionario } from "@/lib/types";
 import { formatCurrency, formatDateOnly, isSameMonth } from "@/lib/format";
 
+function mesLabel(ano: number, mes: number) {
+  return new Date(ano, mes, 1).toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
 export default function FuncionarioPage() {
+  const hoje = new Date();
+  const [anoSel, setAnoSel] = useState(hoje.getFullYear());
+  const [mesSel, setMesSel] = useState(hoje.getMonth());
+
   const [nome, setNome] = useState("");
   const [dataEntrada, setDataEntrada] = useState("");
   const [salario, setSalario] = useState("");
@@ -24,7 +35,7 @@ export default function FuncionarioPage() {
 
   const [expandidoId, setExpandidoId] = useState<string | null>(null);
 
-  const [paraPagamento, setParaPagamento] = useState<Funcionario | null>(null);
+  const [paraPagamento, setParaPagamento] = useState<{ func: Funcionario; quinzena: 1 | 2 } | null>(null);
   const [valorPagamento, setValorPagamento] = useState("");
   const [paraFalta, setParaFalta] = useState<Funcionario | null>(null);
 
@@ -37,6 +48,19 @@ export default function FuncionarioPage() {
   const [paraExcluirFalta, setParaExcluirFalta] = useState<FaltaFuncionario | null>(null);
 
   const valido = nome.trim().length > 0 && dataEntrada !== "" && Number(salario.replace(",", ".")) > 0;
+
+  function refMes() {
+    return new Date(anoSel, mesSel, 1);
+  }
+
+  function navMes(delta: number) {
+    let m = mesSel + delta;
+    let a = anoSel;
+    if (m < 0) { m = 11; a--; }
+    if (m > 11) { m = 0; a++; }
+    setMesSel(m);
+    setAnoSel(a);
+  }
 
   async function carregarTudo() {
     setLoading(true);
@@ -51,14 +75,15 @@ export default function FuncionarioPage() {
     setLoading(false);
   }
 
-  useEffect(() => {
-    carregarTudo();
-  }, []);
+  useEffect(() => { carregarTudo(); }, []);
 
   function resetForm() {
-    setNome("");
-    setDataEntrada("");
-    setSalario("");
+    setNome(""); setDataEntrada(""); setSalario("");
+  }
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
   }
 
   async function salvarFuncionario() {
@@ -70,14 +95,10 @@ export default function FuncionarioPage() {
       valor_salario: Number(salario.replace(",", ".")),
     });
     setSaving(false);
-    if (error) {
-      setToast(`Erro ao salvar: ${error.message}`);
-      return;
-    }
-    setToast("Funcionário registrado.");
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Funcionário registrado.");
     resetForm();
     carregarTudo();
-    setTimeout(() => setToast(null), 2500);
   }
 
   async function confirmarPagamento() {
@@ -85,257 +106,243 @@ export default function FuncionarioPage() {
     const valor = Number(valorPagamento.replace(",", "."));
     if (!(valor > 0)) return;
     const { error } = await supabase.from("pagamentos_funcionario").insert({
-      funcionario_id: paraPagamento.id,
+      funcionario_id: paraPagamento.func.id,
       valor,
+      quinzena: paraPagamento.quinzena,
     });
     setParaPagamento(null);
     setValorPagamento("");
-    if (error) {
-      setToast(`Erro ao registrar pagamento: ${error.message}`);
-      return;
-    }
-    setToast("Pagamento registrado.");
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Pagamento registrado.");
     carregarTudo();
-    setTimeout(() => setToast(null), 2500);
   }
 
   async function confirmarFalta() {
     if (!paraFalta) return;
-    const { error } = await supabase.from("faltas_funcionario").insert({
-      funcionario_id: paraFalta.id,
-    });
+    const { error } = await supabase.from("faltas_funcionario").insert({ funcionario_id: paraFalta.id });
     setParaFalta(null);
-    if (error) {
-      setToast(`Erro ao registrar falta: ${error.message}`);
-      return;
-    }
-    setToast("Falta registrada.");
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Falta registrada.");
     carregarTudo();
-    setTimeout(() => setToast(null), 2500);
   }
 
   async function confirmarEditarPagamento() {
     if (!paraEditarPagamento) return;
     const valor = Number(valorEditado.replace(",", "."));
     if (!(valor > 0)) return;
-    const { error } = await supabase
-      .from("pagamentos_funcionario")
-      .update({ valor })
-      .eq("id", paraEditarPagamento.id);
-    setParaEditarPagamento(null);
-    setValorEditado("");
-    if (error) {
-      setToast(`Erro ao editar pagamento: ${error.message}`);
-      return;
-    }
-    setToast("Pagamento atualizado.");
-    carregarTudo();
-    setTimeout(() => setToast(null), 2500);
+    const { error } = await supabase.from("pagamentos_funcionario").update({ valor }).eq("id", paraEditarPagamento.id);
+    setParaEditarPagamento(null); setValorEditado("");
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Pagamento atualizado."); carregarTudo();
   }
 
   async function confirmarExcluirPagamento() {
     if (!paraExcluirPagamento) return;
-    const { error } = await supabase
-      .from("pagamentos_funcionario")
-      .delete()
-      .eq("id", paraExcluirPagamento.id);
+    const { error } = await supabase.from("pagamentos_funcionario").delete().eq("id", paraExcluirPagamento.id);
     setParaExcluirPagamento(null);
-    if (error) {
-      setToast(`Erro ao excluir pagamento: ${error.message}`);
-      return;
-    }
-    setToast("Pagamento excluído.");
-    carregarTudo();
-    setTimeout(() => setToast(null), 2500);
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Pagamento excluído."); carregarTudo();
   }
 
   async function confirmarEditarFalta() {
     if (!paraEditarFalta || dataEditada === "") return;
-    const { error } = await supabase
-      .from("faltas_funcionario")
+    const { error } = await supabase.from("faltas_funcionario")
       .update({ created_at: new Date(`${dataEditada}T12:00:00`).toISOString() })
       .eq("id", paraEditarFalta.id);
-    setParaEditarFalta(null);
-    setDataEditada("");
-    if (error) {
-      setToast(`Erro ao editar falta: ${error.message}`);
-      return;
-    }
-    setToast("Falta atualizada.");
-    carregarTudo();
-    setTimeout(() => setToast(null), 2500);
+    setParaEditarFalta(null); setDataEditada("");
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Falta atualizada."); carregarTudo();
   }
 
   async function confirmarExcluirFalta() {
     if (!paraExcluirFalta) return;
-    const { error } = await supabase
-      .from("faltas_funcionario")
-      .delete()
-      .eq("id", paraExcluirFalta.id);
+    const { error } = await supabase.from("faltas_funcionario").delete().eq("id", paraExcluirFalta.id);
     setParaExcluirFalta(null);
-    if (error) {
-      setToast(`Erro ao excluir falta: ${error.message}`);
-      return;
-    }
-    setToast("Falta excluída.");
-    carregarTudo();
-    setTimeout(() => setToast(null), 2500);
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Falta excluída."); carregarTudo();
   }
 
-  const hoje = new Date();
+  function dadosMes(f: Funcionario) {
+    const ref = refMes();
+    const pagsMes = pagamentos.filter((p) => p.funcionario_id === f.id && isSameMonth(p.created_at, ref));
+    const pagsQ1 = pagsMes.filter((p) => p.quinzena === 1);
+    const pagsQ2 = pagsMes.filter((p) => p.quinzena === 2);
+    const faltasMes = faltas.filter((fa) => fa.funcionario_id === f.id && isSameMonth(fa.created_at, ref));
+    const metaQ = f.valor_salario / 2;
+    const pagoQ1 = pagsQ1.reduce((acc, p) => acc + p.valor, 0);
+    const pagoQ2 = pagsQ2.reduce((acc, p) => acc + p.valor, 0);
+    const saldoQ1 = Math.max(0, metaQ - pagoQ1);
+    const saldoQ2 = Math.max(0, metaQ - pagoQ2);
+    const totalPago = pagsMes.reduce((acc, p) => acc + p.valor, 0);
+    const saldoMes = f.valor_salario - totalPago;
+    return { pagsMes, pagsQ1, pagsQ2, faltasMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, totalPago, saldoMes };
+  }
+
+  const totalFolha = funcionarios.reduce((acc, f) => acc + dadosMes(f).saldoMes, 0);
 
   return (
     <div>
       <Toast message={toast} />
-      <PageHeader
-        title="Funcionários"
-        subtitle="Equipe, pagamentos e faltas"
-        accent="demanda"
-      />
+      <PageHeader title="Equipe" subtitle="Folha de pagamento e faltas" accent="demanda" />
 
-      <div className="space-y-6 px-5">
-        <div>
-          <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">
-            Nome
-          </label>
-          <input
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            placeholder="Nome do funcionário"
-            className="w-full rounded-xl border border-border bg-surface px-4 py-4 text-lg font-bold text-foreground placeholder:text-muted focus:border-demanda focus:outline-none"
-          />
-        </div>
+      <div className="space-y-5 px-5 pb-10">
 
-        <div>
-          <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">
-            Data de entrada
-          </label>
-          <input
-            type="date"
-            value={dataEntrada}
-            onChange={(e) => setDataEntrada(e.target.value)}
-            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground focus:border-demanda focus:outline-none"
-          />
-        </div>
-
-        <div>
-          <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">
-            Valor do salário (R$)
-          </label>
-          <input
-            inputMode="decimal"
-            placeholder="0,00"
-            value={salario}
-            onChange={(e) => setSalario(e.target.value)}
-            className="w-full rounded-xl border border-border bg-surface px-4 py-4 font-ticket text-3xl font-bold text-foreground placeholder:text-muted focus:border-demanda focus:outline-none"
-          />
-        </div>
-
-        <div className="pb-2">
-          <button
-            type="button"
-            disabled={!valido || saving}
-            onClick={() => salvarFuncionario()}
-            className="w-full rounded-xl bg-demanda py-4 text-base font-extrabold uppercase tracking-wide text-black disabled:opacity-40"
-          >
+        {/* Cadastro */}
+        <div className="space-y-4 rounded-xl border border-border bg-surface px-4 py-4">
+          <h2 className="text-xs font-extrabold uppercase tracking-wide text-muted">Novo funcionário</h2>
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-muted">Nome</label>
+            <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome do funcionário"
+              className="w-full rounded-xl border border-border bg-surface-2 px-4 py-3 font-bold text-foreground placeholder:text-muted focus:border-demanda focus:outline-none" />
+          </div>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-muted">Entrada</label>
+              <input type="date" value={dataEntrada} onChange={(e) => setDataEntrada(e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface-2 px-3 py-3 text-foreground focus:border-demanda focus:outline-none" />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-muted">Salário (R$)</label>
+              <input inputMode="decimal" placeholder="0,00" value={salario} onChange={(e) => setSalario(e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface-2 px-3 py-3 font-ticket text-lg font-bold text-foreground placeholder:text-muted focus:border-demanda focus:outline-none" />
+            </div>
+          </div>
+          <button type="button" disabled={!valido || saving} onClick={salvarFuncionario}
+            className="w-full rounded-xl bg-demanda py-3 text-sm font-extrabold uppercase tracking-wide text-black disabled:opacity-40">
             Salvar Funcionário
           </button>
         </div>
 
-        <div>
-          <h2 className="mb-2 text-xs font-bold uppercase tracking-wide text-muted">
-            Equipe
-          </h2>
-          {loading ? (
-            <p className="py-4 text-center text-sm text-muted">Carregando...</p>
-          ) : funcionarios.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted">
-              Nenhum funcionário registrado ainda.
-            </p>
-          ) : (
-            <ul className="space-y-3 pb-6">
-              {funcionarios.map((f) => {
-                const pagamentosMes = pagamentos.filter(
-                  (p) => p.funcionario_id === f.id && isSameMonth(p.created_at, hoje),
-                );
-                const totalPagoMes = pagamentosMes.reduce((acc, p) => acc + p.valor, 0);
-                const saldo = f.valor_salario - totalPagoMes;
-                const faltasMes = faltas.filter(
-                  (fa) => fa.funcionario_id === f.id && isSameMonth(fa.created_at, hoje),
-                );
-                const expandido = expandidoId === f.id;
+        {/* Navegação de mês */}
+        <div className="flex items-center justify-between gap-2">
+          <button type="button" onClick={() => navMes(-1)}
+            className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-bold">‹</button>
+          <span className="text-sm font-bold capitalize">{mesLabel(anoSel, mesSel)}</span>
+          <button type="button" onClick={() => navMes(1)}
+            className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-bold">›</button>
+        </div>
 
-                return (
-                  <li
-                    key={f.id}
-                    className="rounded-xl border border-border bg-surface px-4 py-3"
-                  >
-                    <div className="flex items-start justify-between gap-3">
+        {loading ? (
+          <p className="py-8 text-center text-sm text-muted">Carregando...</p>
+        ) : funcionarios.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted">Nenhum funcionário registrado ainda.</p>
+        ) : (
+          <>
+            {/* Resumo da folha */}
+            <div className="rounded-xl border border-border bg-surface px-4 py-4">
+              <h2 className="mb-3 text-xs font-extrabold uppercase tracking-wide text-muted">
+                Folha de Pagamento — {mesLabel(anoSel, mesSel)}
+              </h2>
+              <ul className="space-y-2">
+                {funcionarios.map((f) => {
+                  const { saldoMes, pagoQ1, pagoQ2, metaQ } = dadosMes(f);
+                  const quitado = saldoMes <= 0;
+                  return (
+                    <li key={f.id} className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate font-bold">{f.nome}</p>
-                        <p className="mt-0.5 text-sm text-muted">
-                          Desde {formatDateOnly(f.data_entrada)} ·{" "}
-                          {formatCurrency(f.valor_salario)}/mês
+                        <p className="truncate text-sm font-bold">{f.nome}</p>
+                        <p className="text-xs text-muted">
+                          1ª Q: {formatCurrency(pagoQ1)}/{formatCurrency(metaQ)} ·{" "}
+                          2ª Q: {formatCurrency(pagoQ2)}/{formatCurrency(metaQ)}
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="text-xs text-muted">Saldo do mês</p>
-                        <p className="font-ticket text-lg font-bold text-despesa">
-                          {formatCurrency(saldo)}
+                        <p className={`font-ticket text-sm font-bold ${quitado ? "text-success" : "text-danger"}`}>
+                          {quitado ? "Quitado" : `Falta ${formatCurrency(saldoMes)}`}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="mt-3 border-t border-border pt-3 flex justify-between items-center">
+                <span className="text-xs font-extrabold uppercase text-muted">Total a pagar</span>
+                <span className={`font-ticket font-bold ${totalFolha <= 0 ? "text-success" : "text-danger"}`}>
+                  {formatCurrency(Math.max(0, totalFolha))}
+                </span>
+              </div>
+            </div>
+
+            {/* Cards individuais */}
+            <ul className="space-y-4">
+              {funcionarios.map((f) => {
+                const { pagsMes, pagsQ1, pagsQ2, faltasMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, saldoMes } = dadosMes(f);
+                const expandido = expandidoId === f.id;
+
+                return (
+                  <li key={f.id} className="rounded-xl border border-border bg-surface px-4 py-4">
+                    {/* Cabeçalho */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-bold">{f.nome}</p>
+                        <p className="text-xs text-muted">
+                          Desde {formatDateOnly(f.data_entrada)} · {formatCurrency(f.valor_salario)}/mês
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-[10px] text-muted">Saldo devedor</p>
+                        <p className={`font-ticket text-base font-bold ${saldoMes <= 0 ? "text-success" : "text-danger"}`}>
+                          {saldoMes <= 0 ? "Quitado" : formatCurrency(saldoMes)}
                         </p>
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setExpandidoId(expandido ? null : f.id)}
-                      className="mt-2 text-xs font-bold uppercase text-muted underline"
-                    >
-                      {faltasMes.length} {faltasMes.length === 1 ? "falta" : "faltas"} no
-                      mês · {expandido ? "ocultar lançamentos" : "ver lançamentos"}
+                    {/* Quinzenas */}
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      {/* 1ª Quinzena */}
+                      <div className={`rounded-xl border p-3 ${saldoQ1 <= 0 ? "border-success/40 bg-success/10" : "border-border bg-surface-2"}`}>
+                        <p className="text-[10px] font-extrabold uppercase text-muted">1ª Quinzena</p>
+                        <p className="text-[10px] text-muted">Venc. dia 01</p>
+                        <p className="mt-1 font-ticket text-xs">Meta: {formatCurrency(metaQ)}</p>
+                        <p className="font-ticket text-xs text-success">Pago: {formatCurrency(pagoQ1)}</p>
+                        {saldoQ1 > 0 ? (
+                          <p className="font-ticket text-xs font-bold text-danger">Falta: {formatCurrency(saldoQ1)}</p>
+                        ) : (
+                          <p className="text-xs font-bold text-success">✓ Quitado</p>
+                        )}
+                      </div>
+
+                      {/* 2ª Quinzena */}
+                      <div className={`rounded-xl border p-3 ${saldoQ2 <= 0 ? "border-success/40 bg-success/10" : "border-border bg-surface-2"}`}>
+                        <p className="text-[10px] font-extrabold uppercase text-muted">2ª Quinzena</p>
+                        <p className="text-[10px] text-muted">Venc. dia 15</p>
+                        <p className="mt-1 font-ticket text-xs">Meta: {formatCurrency(metaQ)}</p>
+                        <p className="font-ticket text-xs text-success">Pago: {formatCurrency(pagoQ2)}</p>
+                        {saldoQ2 > 0 ? (
+                          <p className="font-ticket text-xs font-bold text-danger">Falta: {formatCurrency(saldoQ2)}</p>
+                        ) : (
+                          <p className="text-xs font-bold text-success">✓ Quitado</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Faltas e lançamentos */}
+                    <button type="button" onClick={() => setExpandidoId(expandido ? null : f.id)}
+                      className="mt-3 text-xs font-bold uppercase text-muted underline">
+                      {faltasMes.length} {faltasMes.length === 1 ? "falta" : "faltas"} ·{" "}
+                      {expandido ? "ocultar lançamentos" : "ver lançamentos"}
                     </button>
 
                     {expandido && (
                       <div className="mt-3 space-y-3 border-t border-border pt-3">
+                        {/* Pagamentos 1ª Q */}
                         <div>
-                          <p className="mb-1 text-xs font-bold uppercase text-muted">
-                            Pagamentos do mês
-                          </p>
-                          {pagamentosMes.length === 0 ? (
-                            <p className="text-xs text-muted">Nenhum pagamento no mês.</p>
+                          <p className="mb-1 text-xs font-bold uppercase text-muted">Pagamentos 1ª Quinzena</p>
+                          {pagsQ1.length === 0 ? (
+                            <p className="text-xs text-muted">Nenhum pagamento.</p>
                           ) : (
                             <ul className="space-y-1">
-                              {pagamentosMes.map((p) => (
-                                <li
-                                  key={p.id}
-                                  className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2"
-                                >
-                                  <div className="min-w-0">
-                                    <p className="font-ticket text-sm font-bold">
-                                      {formatCurrency(p.valor)}
-                                    </p>
-                                    <p className="text-xs text-muted">
-                                      {formatDateOnly(p.created_at.slice(0, 10))}
-                                    </p>
+                              {pagsQ1.map((p) => (
+                                <li key={p.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2">
+                                  <div>
+                                    <p className="font-ticket text-sm font-bold">{formatCurrency(p.valor)}</p>
+                                    <p className="text-xs text-muted">{formatDateOnly(p.created_at.slice(0, 10))}</p>
                                   </div>
-                                  <div className="flex shrink-0 gap-3">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setParaEditarPagamento(p);
-                                        setValorEditado(String(p.valor).replace(".", ","));
-                                      }}
-                                      className="text-xs font-bold uppercase text-foreground"
-                                    >
-                                      Editar
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setParaExcluirPagamento(p)}
-                                      className="text-xs font-bold uppercase text-danger"
-                                    >
-                                      Excluir
-                                    </button>
+                                  <div className="flex gap-3">
+                                    <button type="button" onClick={() => { setParaEditarPagamento(p); setValorEditado(String(p.valor).replace(".", ",")); }}
+                                      className="text-xs font-bold uppercase text-foreground">Editar</button>
+                                    <button type="button" onClick={() => setParaExcluirPagamento(p)}
+                                      className="text-xs font-bold uppercase text-danger">Excluir</button>
                                   </div>
                                 </li>
                               ))}
@@ -343,40 +350,46 @@ export default function FuncionarioPage() {
                           )}
                         </div>
 
+                        {/* Pagamentos 2ª Q */}
                         <div>
-                          <p className="mb-1 text-xs font-bold uppercase text-muted">
-                            Faltas do mês
-                          </p>
+                          <p className="mb-1 text-xs font-bold uppercase text-muted">Pagamentos 2ª Quinzena</p>
+                          {pagsQ2.length === 0 ? (
+                            <p className="text-xs text-muted">Nenhum pagamento.</p>
+                          ) : (
+                            <ul className="space-y-1">
+                              {pagsQ2.map((p) => (
+                                <li key={p.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2">
+                                  <div>
+                                    <p className="font-ticket text-sm font-bold">{formatCurrency(p.valor)}</p>
+                                    <p className="text-xs text-muted">{formatDateOnly(p.created_at.slice(0, 10))}</p>
+                                  </div>
+                                  <div className="flex gap-3">
+                                    <button type="button" onClick={() => { setParaEditarPagamento(p); setValorEditado(String(p.valor).replace(".", ",")); }}
+                                      className="text-xs font-bold uppercase text-foreground">Editar</button>
+                                    <button type="button" onClick={() => setParaExcluirPagamento(p)}
+                                      className="text-xs font-bold uppercase text-danger">Excluir</button>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+
+                        {/* Faltas */}
+                        <div>
+                          <p className="mb-1 text-xs font-bold uppercase text-muted">Faltas do mês</p>
                           {faltasMes.length === 0 ? (
-                            <p className="text-xs text-muted">Nenhuma falta no mês.</p>
+                            <p className="text-xs text-muted">Nenhuma falta.</p>
                           ) : (
                             <ul className="space-y-1">
                               {faltasMes.map((fa) => (
-                                <li
-                                  key={fa.id}
-                                  className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2"
-                                >
-                                  <p className="text-sm">
-                                    {formatDateOnly(fa.created_at.slice(0, 10))}
-                                  </p>
-                                  <div className="flex shrink-0 gap-3">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setParaEditarFalta(fa);
-                                        setDataEditada(fa.created_at.slice(0, 10));
-                                      }}
-                                      className="text-xs font-bold uppercase text-foreground"
-                                    >
-                                      Editar
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setParaExcluirFalta(fa)}
-                                      className="text-xs font-bold uppercase text-danger"
-                                    >
-                                      Excluir
-                                    </button>
+                                <li key={fa.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2">
+                                  <p className="text-sm">{formatDateOnly(fa.created_at.slice(0, 10))}</p>
+                                  <div className="flex gap-3">
+                                    <button type="button" onClick={() => { setParaEditarFalta(fa); setDataEditada(fa.created_at.slice(0, 10)); }}
+                                      className="text-xs font-bold uppercase text-foreground">Editar</button>
+                                    <button type="button" onClick={() => setParaExcluirFalta(fa)}
+                                      className="text-xs font-bold uppercase text-danger">Excluir</button>
                                   </div>
                                 </li>
                               ))}
@@ -386,19 +399,18 @@ export default function FuncionarioPage() {
                       </div>
                     )}
 
+                    {/* Botões de ação */}
                     <div className="mt-3 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setParaPagamento(f)}
-                        className="flex-1 rounded-xl border border-success py-2 text-xs font-bold uppercase text-success"
-                      >
-                        Pagamento
+                      <button type="button" onClick={() => setParaPagamento({ func: f, quinzena: 1 })}
+                        className={`flex-1 rounded-xl border py-2 text-xs font-bold uppercase ${saldoQ1 <= 0 ? "border-border text-muted" : "border-success text-success"}`}>
+                        Pagar 1ª Q
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setParaFalta(f)}
-                        className="flex-1 rounded-xl border border-danger py-2 text-xs font-bold uppercase text-danger"
-                      >
+                      <button type="button" onClick={() => setParaPagamento({ func: f, quinzena: 2 })}
+                        className={`flex-1 rounded-xl border py-2 text-xs font-bold uppercase ${saldoQ2 <= 0 ? "border-border text-muted" : "border-success text-success"}`}>
+                        Pagar 2ª Q
+                      </button>
+                      <button type="button" onClick={() => setParaFalta(f)}
+                        className="flex-1 rounded-xl border border-danger py-2 text-xs font-bold uppercase text-danger">
                         Falta
                       </button>
                     </div>
@@ -406,30 +418,25 @@ export default function FuncionarioPage() {
                 );
               })}
             </ul>
-          )}
-        </div>
+          </>
+        )}
       </div>
 
       <AmountDialog
         open={paraPagamento !== null}
-        title="Registrar pagamento"
-        description={paraPagamento ? `Pagamento para ${paraPagamento.nome}.` : undefined}
+        title={paraPagamento ? `Pagar ${paraPagamento.quinzena}ª Quinzena` : ""}
+        description={paraPagamento ? `${paraPagamento.func.nome} · venc. dia ${paraPagamento.quinzena === 1 ? "01" : "15"}` : undefined}
         value={valorPagamento}
         onValueChange={setValorPagamento}
         confirmLabel="Salvar pagamento"
         onConfirm={confirmarPagamento}
-        onCancel={() => {
-          setParaPagamento(null);
-          setValorPagamento("");
-        }}
+        onCancel={() => { setParaPagamento(null); setValorPagamento(""); }}
       />
 
       <ConfirmDialog
         open={paraFalta !== null}
         title="Registrar falta?"
-        description={
-          paraFalta ? `Confirma uma falta de ${paraFalta.nome} hoje.` : undefined
-        }
+        description={paraFalta ? `Confirma uma falta de ${paraFalta.nome} hoje.` : undefined}
         confirmLabel="Sim, registrar"
         onConfirm={confirmarFalta}
         onCancel={() => setParaFalta(null)}
@@ -443,10 +450,7 @@ export default function FuncionarioPage() {
         onValueChange={setValorEditado}
         confirmLabel="Salvar alteração"
         onConfirm={confirmarEditarPagamento}
-        onCancel={() => {
-          setParaEditarPagamento(null);
-          setValorEditado("");
-        }}
+        onCancel={() => { setParaEditarPagamento(null); setValorEditado(""); }}
       />
 
       <ConfirmDialog
@@ -466,10 +470,7 @@ export default function FuncionarioPage() {
         onValueChange={setDataEditada}
         confirmLabel="Salvar alteração"
         onConfirm={confirmarEditarFalta}
-        onCancel={() => {
-          setParaEditarFalta(null);
-          setDataEditada("");
-        }}
+        onCancel={() => { setParaEditarFalta(null); setDataEditada(""); }}
       />
 
       <ConfirmDialog

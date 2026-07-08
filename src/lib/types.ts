@@ -77,6 +77,7 @@ export interface PagamentoFuncionario {
   id: string;
   funcionario_id: string;
   valor: number;
+  quinzena: 1 | 2 | null;
   observacao: string | null;
   created_at: string;
 }
