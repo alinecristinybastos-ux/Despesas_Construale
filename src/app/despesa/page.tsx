@@ -30,7 +30,19 @@ export default function DespesaPage() {
   const [paraConfirmar, setParaConfirmar] = useState<Despesa | null>(null);
   const [paraExcluir, setParaExcluir] = useState<Despesa | null>(null);
 
+  const [paraEditar, setParaEditar] = useState<Despesa | null>(null);
+  const [editValor, setEditValor] = useState("");
+  const [editCategoria, setEditCategoria] = useState<CategoriaDespesa | null>(null);
+  const [editObservacao, setEditObservacao] = useState("");
+  const [editData, setEditData] = useState("");
+
   const valido = Number(valor.replace(",", ".")) > 0 && categoria !== null;
+  const editValido = Number(editValor.replace(",", ".")) > 0 && editCategoria !== null;
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }
 
   async function carregarRecentes() {
     setLoadingRecentes(true);
@@ -54,6 +66,14 @@ export default function DespesaPage() {
     setDataDespesa(hojeISO());
   }
 
+  function abrirEditar(d: Despesa) {
+    setParaEditar(d);
+    setEditValor(String(d.valor).replace(".", ","));
+    setEditCategoria(d.categoria);
+    setEditObservacao(d.observacao ?? "");
+    setEditData(d.created_at.slice(0, 10));
+  }
+
   async function salvar() {
     if (!valido || !categoria) return;
     setSaving(true);
@@ -65,14 +85,10 @@ export default function DespesaPage() {
       created_at: new Date(`${dataDespesa}T12:00:00`).toISOString(),
     });
     setSaving(false);
-    if (error) {
-      setToast(`Erro ao salvar: ${error.message}`);
-      return;
-    }
-    setToast("Despesa registrada.");
+    if (error) { showToast(`Erro ao salvar: ${error.message}`); return; }
+    showToast("Despesa registrada.");
     resetForm();
     carregarRecentes();
-    setTimeout(() => setToast(null), 2500);
   }
 
   async function confirmarToggleLancado() {
@@ -83,10 +99,7 @@ export default function DespesaPage() {
       .update({ lancado_no_sistema: novoStatus })
       .eq("id", paraConfirmar.id);
     setParaConfirmar(null);
-    if (error) {
-      setToast(`Erro ao atualizar: ${error.message}`);
-      return;
-    }
+    if (error) { showToast(`Erro ao atualizar: ${error.message}`); return; }
     setRecentes((prev) =>
       prev.map((d) =>
         d.id === paraConfirmar.id ? { ...d, lancado_no_sistema: novoStatus } : d,
@@ -94,17 +107,29 @@ export default function DespesaPage() {
     );
   }
 
+  async function confirmarEditar() {
+    if (!paraEditar || !editCategoria) return;
+    const valor = Number(editValor.replace(",", "."));
+    if (!(valor > 0)) return;
+    const { error } = await supabase.from("despesas").update({
+      valor,
+      categoria: editCategoria,
+      observacao: editObservacao.trim() || null,
+      created_at: new Date(`${editData}T12:00:00`).toISOString(),
+    }).eq("id", paraEditar.id);
+    setParaEditar(null);
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Despesa atualizada.");
+    carregarRecentes();
+  }
+
   async function confirmarExcluir() {
     if (!paraExcluir) return;
     const { error } = await supabase.from("despesas").delete().eq("id", paraExcluir.id);
     setParaExcluir(null);
-    if (error) {
-      setToast(`Erro ao excluir: ${error.message}`);
-      return;
-    }
+    if (error) { showToast(`Erro ao excluir: ${error.message}`); return; }
     setRecentes((prev) => prev.filter((d) => d.id !== paraExcluir.id));
-    setToast("Despesa excluída.");
-    setTimeout(() => setToast(null), 2500);
+    showToast("Despesa excluída.");
   }
 
   return (
@@ -226,13 +251,22 @@ export default function DespesaPage() {
                       >
                         {d.lancado_no_sistema ? "Lançado" : "Pendente"}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setParaExcluir(d)}
-                        className="mt-1 block text-xs font-bold uppercase text-danger"
-                      >
-                        Excluir
-                      </button>
+                      <div className="mt-1 flex justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={() => abrirEditar(d)}
+                          className="text-xs font-bold uppercase text-foreground"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setParaExcluir(d)}
+                          className="text-xs font-bold uppercase text-danger"
+                        >
+                          Excluir
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </li>
@@ -267,6 +301,75 @@ export default function DespesaPage() {
         onConfirm={confirmarExcluir}
         onCancel={() => setParaExcluir(null)}
       />
+
+      {/* Overlay de edição */}
+      {paraEditar && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-background">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <h2 className="font-extrabold uppercase tracking-wide">Editar Despesa</h2>
+            <button type="button" onClick={() => setParaEditar(null)}
+              className="text-xl font-bold text-muted">✕</button>
+          </div>
+
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">Valor (R$)</label>
+              <input
+                inputMode="decimal"
+                value={editValor}
+                onChange={(e) => setEditValor(e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface px-4 py-4 font-ticket text-3xl font-bold text-foreground focus:border-despesa focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">Categoria</label>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIAS_DESPESA.map((cat) => (
+                  <Chip
+                    key={cat}
+                    label={CATEGORIA_DESPESA_LABEL[cat]}
+                    selected={editCategoria === cat}
+                    onClick={() => setEditCategoria(cat)}
+                    accent="despesa"
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">Observação</label>
+              <textarea
+                value={editObservacao}
+                onChange={(e) => setEditObservacao(e.target.value)}
+                rows={3}
+                className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground focus:border-despesa focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">Data</label>
+              <input
+                type="date"
+                value={editData}
+                onChange={(e) => setEditData(e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground focus:border-despesa focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="px-5 py-4">
+            <button
+              type="button"
+              disabled={!editValido}
+              onClick={confirmarEditar}
+              className="w-full rounded-xl bg-despesa py-4 text-base font-extrabold uppercase tracking-wide text-black disabled:opacity-40"
+            >
+              Salvar Alteração
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

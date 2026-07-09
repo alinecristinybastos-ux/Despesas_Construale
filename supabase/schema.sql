@@ -9,7 +9,7 @@ create table if not exists public.despesas (
   categoria text not null check (categoria in (
     'COMBUSTIVEL', 'ALIMENTACAO', 'MAO_DE_OBRA', 'MANUTENCAO_VEICULOS',
     'PRODUTOS', 'COMISSAO', 'DIVERSOS',
-    'LICENCIAMENTOS', 'TARIFAS_JUROS', 'DESPESAS_PESSOAIS', 'CONTAS_FX_PESS', 'EMPRESTIMOS'
+    'LICENCIAMENTOS', 'TARIFAS_JUROS', 'DESPESAS_PESSOAIS', 'CONTAS_FX_PESS', 'EMPRESTIMOS', 'IMPOSTO'
   )),
   observacao text,
   lancado_no_sistema boolean not null default false,

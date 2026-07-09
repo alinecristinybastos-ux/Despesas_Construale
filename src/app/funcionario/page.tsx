@@ -50,6 +50,9 @@ export default function FuncionarioPage() {
   const [paraEditarDataPagamento, setParaEditarDataPagamento] = useState<PagamentoFuncionario | null>(null);
   const [dataEditadaPagamento, setDataEditadaPagamento] = useState("");
 
+  const [paraVale, setParaVale] = useState<Funcionario | null>(null);
+  const [valorVale, setValorVale] = useState("");
+
   const valido = nome.trim().length > 0 && dataEntrada !== "" && Number(salario.replace(",", ".")) > 0;
 
   function refMes() {
@@ -147,6 +150,21 @@ export default function FuncionarioPage() {
     showToast("Pagamento excluído."); carregarTudo();
   }
 
+  async function confirmarVale() {
+    if (!paraVale) return;
+    const valor = Number(valorVale.replace(",", "."));
+    if (!(valor > 0)) return;
+    const { error } = await supabase.from("pagamentos_funcionario").insert({
+      funcionario_id: paraVale.id,
+      valor,
+      quinzena: null,
+    });
+    setParaVale(null); setValorVale("");
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Vale registrado.");
+    carregarTudo();
+  }
+
   async function confirmarEditarDataPagamento() {
     if (!paraEditarDataPagamento || dataEditadaPagamento === "") return;
     const { error } = await supabase.from("pagamentos_funcionario")
@@ -180,6 +198,7 @@ export default function FuncionarioPage() {
     const pagsMes = pagamentos.filter((p) => p.funcionario_id === f.id && isSameMonth(p.created_at, ref));
     const pagsQ1 = pagsMes.filter((p) => p.quinzena === 1);
     const pagsQ2 = pagsMes.filter((p) => p.quinzena === 2);
+    const vales = pagsMes.filter((p) => p.quinzena === null);
     const faltasMes = faltas.filter((fa) => fa.funcionario_id === f.id && isSameMonth(fa.created_at, ref));
     const metaQ = f.valor_salario / 2;
     const pagoQ1 = pagsQ1.reduce((acc, p) => acc + p.valor, 0);
@@ -188,7 +207,7 @@ export default function FuncionarioPage() {
     const saldoQ2 = Math.max(0, metaQ - pagoQ2);
     const totalPago = pagsMes.reduce((acc, p) => acc + p.valor, 0);
     const saldoMes = f.valor_salario - totalPago;
-    return { pagsMes, pagsQ1, pagsQ2, faltasMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, totalPago, saldoMes };
+    return { pagsMes, pagsQ1, pagsQ2, vales, faltasMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, totalPago, saldoMes };
   }
 
   const totalFolha = funcionarios.reduce((acc, f) => acc + dadosMes(f).saldoMes, 0);
@@ -283,7 +302,7 @@ export default function FuncionarioPage() {
             {/* Cards individuais */}
             <ul className="space-y-4">
               {funcionarios.map((f) => {
-                const { pagsQ1, pagsQ2, faltasMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, saldoMes } = dadosMes(f);
+                const { pagsQ1, pagsQ2, vales, faltasMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, saldoMes } = dadosMes(f);
                 const mostrarFaltas = expandidoId === f.id;
 
                 function PagamentoItem({ p }: { p: PagamentoFuncionario }) {
@@ -369,6 +388,16 @@ export default function FuncionarioPage() {
                       )}
                     </div>
 
+                    {/* Vales */}
+                    {vales.length > 0 && (
+                      <div className="mt-2 rounded-xl border border-border bg-surface-2 p-3">
+                        <p className="mb-2 text-[10px] font-extrabold uppercase text-muted">Vales do mês</p>
+                        <ul className="space-y-1">
+                          {vales.map((p) => <PagamentoItem key={p.id} p={p} />)}
+                        </ul>
+                      </div>
+                    )}
+
                     {/* Faltas (toggle) */}
                     <button type="button" onClick={() => setExpandidoId(mostrarFaltas ? null : f.id)}
                       className="mt-3 text-xs font-bold uppercase text-muted underline">
@@ -393,19 +422,27 @@ export default function FuncionarioPage() {
                     )}
 
                     {/* Botões de ação */}
-                    <div className="mt-3 flex gap-2">
-                      <button type="button" onClick={() => setParaPagamento({ func: f, quinzena: 1 })}
-                        className={`flex-1 rounded-xl border py-2 text-xs font-bold uppercase ${saldoQ1 <= 0 ? "border-border text-muted" : "border-success text-success"}`}>
-                        Pagar 1ª Q
-                      </button>
-                      <button type="button" onClick={() => setParaPagamento({ func: f, quinzena: 2 })}
-                        className={`flex-1 rounded-xl border py-2 text-xs font-bold uppercase ${saldoQ2 <= 0 ? "border-border text-muted" : "border-success text-success"}`}>
-                        Pagar 2ª Q
-                      </button>
-                      <button type="button" onClick={() => setParaFalta(f)}
-                        className="flex-1 rounded-xl border border-danger py-2 text-xs font-bold uppercase text-danger">
-                        Falta
-                      </button>
+                    <div className="mt-3 space-y-2">
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setParaPagamento({ func: f, quinzena: 1 })}
+                          className={`flex-1 rounded-xl border py-2 text-xs font-bold uppercase ${saldoQ1 <= 0 ? "border-border text-muted" : "border-success text-success"}`}>
+                          Pagar 1ª Q
+                        </button>
+                        <button type="button" onClick={() => setParaPagamento({ func: f, quinzena: 2 })}
+                          className={`flex-1 rounded-xl border py-2 text-xs font-bold uppercase ${saldoQ2 <= 0 ? "border-border text-muted" : "border-success text-success"}`}>
+                          Pagar 2ª Q
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setParaVale(f)}
+                          className="flex-1 rounded-xl border border-demanda py-2 text-xs font-bold uppercase text-demanda">
+                          Vale
+                        </button>
+                        <button type="button" onClick={() => setParaFalta(f)}
+                          className="flex-1 rounded-xl border border-danger py-2 text-xs font-bold uppercase text-danger">
+                          Falta
+                        </button>
+                      </div>
                     </div>
                   </li>
                 );
@@ -424,6 +461,17 @@ export default function FuncionarioPage() {
         confirmLabel="Salvar pagamento"
         onConfirm={confirmarPagamento}
         onCancel={() => { setParaPagamento(null); setValorPagamento(""); }}
+      />
+
+      <AmountDialog
+        open={paraVale !== null}
+        title="Registrar Vale"
+        description={paraVale ? `Vale para ${paraVale.nome}` : undefined}
+        value={valorVale}
+        onValueChange={setValorVale}
+        confirmLabel="Salvar vale"
+        onConfirm={confirmarVale}
+        onCancel={() => { setParaVale(null); setValorVale(""); }}
       />
 
       <ConfirmDialog
