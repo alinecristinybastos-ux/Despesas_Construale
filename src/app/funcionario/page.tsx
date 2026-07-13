@@ -7,7 +7,7 @@ import AmountDialog from "@/components/AmountDialog";
 import DateDialog from "@/components/DateDialog";
 import Toast from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
-import type { Funcionario, PagamentoFuncionario, FaltaFuncionario } from "@/lib/types";
+import type { Funcionario, PagamentoFuncionario, FaltaFuncionario, HoraExtra } from "@/lib/types";
 import { formatCurrency, formatDateOnly, isSameMonth } from "@/lib/format";
 
 function mesLabel(ano: number, mes: number) {
@@ -15,6 +15,10 @@ function mesLabel(ano: number, mes: number) {
     month: "long",
     year: "numeric",
   });
+}
+
+function hojeISO() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export default function FuncionarioPage() {
@@ -31,80 +35,96 @@ export default function FuncionarioPage() {
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [pagamentos, setPagamentos] = useState<PagamentoFuncionario[]>([]);
   const [faltas, setFaltas] = useState<FaltaFuncionario[]>([]);
+  const [horasExtras, setHorasExtras] = useState<HoraExtra[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [expandidoId, setExpandidoId] = useState<string | null>(null);
 
+  // Pagamentos
   const [paraPagamento, setParaPagamento] = useState<{ func: Funcionario; quinzena: 1 | 2 } | null>(null);
   const [valorPagamento, setValorPagamento] = useState("");
-  const [paraFalta, setParaFalta] = useState<Funcionario | null>(null);
-
   const [paraEditarPagamento, setParaEditarPagamento] = useState<PagamentoFuncionario | null>(null);
   const [valorEditado, setValorEditado] = useState("");
   const [paraExcluirPagamento, setParaExcluirPagamento] = useState<PagamentoFuncionario | null>(null);
+  const [paraEditarDataPagamento, setParaEditarDataPagamento] = useState<PagamentoFuncionario | null>(null);
+  const [dataEditadaPagamento, setDataEditadaPagamento] = useState("");
 
+  // Faltas
+  const [paraFalta, setParaFalta] = useState<Funcionario | null>(null);
   const [paraEditarFalta, setParaEditarFalta] = useState<FaltaFuncionario | null>(null);
   const [dataEditada, setDataEditada] = useState("");
   const [paraExcluirFalta, setParaExcluirFalta] = useState<FaltaFuncionario | null>(null);
 
-  const [paraEditarDataPagamento, setParaEditarDataPagamento] = useState<PagamentoFuncionario | null>(null);
-  const [dataEditadaPagamento, setDataEditadaPagamento] = useState("");
-
+  // Vale
   const [paraVale, setParaVale] = useState<Funcionario | null>(null);
   const [valorVale, setValorVale] = useState("");
 
-  const valido = nome.trim().length > 0 && dataEntrada !== "" && Number(salario.replace(",", ".")) > 0;
+  // Horas Extras (overlay unificado para criar e editar)
+  const [heOverlay, setHeOverlay] = useState<{ func: Funcionario; editando: HoraExtra | null } | null>(null);
+  const [heValor, setHeValor] = useState("");
+  const [heData, setHeData] = useState(hojeISO());
+  const [heObs, setHeObs] = useState("");
+  const [paraExcluirHe, setParaExcluirHe] = useState<HoraExtra | null>(null);
 
-  function refMes() {
-    return new Date(anoSel, mesSel, 1);
-  }
+  const valido = nome.trim().length > 0 && dataEntrada !== "" && Number(salario.replace(",", ".")) > 0;
+  const heValido = Number(heValor.replace(",", ".")) > 0 && heData !== "";
+
+  function refMes() { return new Date(anoSel, mesSel, 1); }
 
   function navMes(delta: number) {
     let m = mesSel + delta;
     let a = anoSel;
     if (m < 0) { m = 11; a--; }
     if (m > 11) { m = 0; a++; }
-    setMesSel(m);
-    setAnoSel(a);
+    setMesSel(m); setAnoSel(a);
   }
 
   async function carregarTudo() {
     setLoading(true);
-    const [f, p, fa] = await Promise.all([
+    const [f, p, fa, he] = await Promise.all([
       supabase.from("funcionarios").select("*").order("nome", { ascending: true }),
       supabase.from("pagamentos_funcionario").select("*").order("created_at", { ascending: false }),
       supabase.from("faltas_funcionario").select("*").order("created_at", { ascending: false }),
+      supabase.from("horas_extras_funcionario").select("*").order("data", { ascending: false }),
     ]);
     setFuncionarios((f.data as Funcionario[]) ?? []);
     setPagamentos((p.data as PagamentoFuncionario[]) ?? []);
     setFaltas((fa.data as FaltaFuncionario[]) ?? []);
+    setHorasExtras((he.data as HoraExtra[]) ?? []);
     setLoading(false);
   }
 
   useEffect(() => { carregarTudo(); }, []);
-
-  function resetForm() {
-    setNome(""); setDataEntrada(""); setSalario("");
-  }
 
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
   }
 
+  function resetForm() { setNome(""); setDataEntrada(""); setSalario(""); }
+
+  function abrirHeOverlay(func: Funcionario, editando: HoraExtra | null) {
+    setHeOverlay({ func, editando });
+    setHeValor(editando ? String(editando.valor).replace(".", ",") : "");
+    setHeData(editando ? editando.data : hojeISO());
+    setHeObs(editando ? (editando.observacao ?? "") : "");
+  }
+
+  function fecharHeOverlay() {
+    setHeOverlay(null);
+    setHeValor(""); setHeData(hojeISO()); setHeObs("");
+  }
+
   async function salvarFuncionario() {
     if (!valido) return;
     setSaving(true);
     const { error } = await supabase.from("funcionarios").insert({
-      nome: nome.trim(),
-      data_entrada: dataEntrada,
+      nome: nome.trim(), data_entrada: dataEntrada,
       valor_salario: Number(salario.replace(",", ".")),
     });
     setSaving(false);
     if (error) { showToast(`Erro: ${error.message}`); return; }
-    showToast("Funcionário registrado.");
-    resetForm();
-    carregarTudo();
+    showToast("Funcionário registrado."); resetForm(); carregarTudo();
   }
 
   async function confirmarPagamento() {
@@ -112,15 +132,23 @@ export default function FuncionarioPage() {
     const valor = Number(valorPagamento.replace(",", "."));
     if (!(valor > 0)) return;
     const { error } = await supabase.from("pagamentos_funcionario").insert({
-      funcionario_id: paraPagamento.func.id,
-      valor,
-      quinzena: paraPagamento.quinzena,
+      funcionario_id: paraPagamento.func.id, valor, quinzena: paraPagamento.quinzena,
     });
-    setParaPagamento(null);
-    setValorPagamento("");
+    setParaPagamento(null); setValorPagamento("");
     if (error) { showToast(`Erro: ${error.message}`); return; }
-    showToast("Pagamento registrado.");
-    carregarTudo();
+    showToast("Pagamento registrado."); carregarTudo();
+  }
+
+  async function confirmarVale() {
+    if (!paraVale) return;
+    const valor = Number(valorVale.replace(",", "."));
+    if (!(valor > 0)) return;
+    const { error } = await supabase.from("pagamentos_funcionario").insert({
+      funcionario_id: paraVale.id, valor, quinzena: null,
+    });
+    setParaVale(null); setValorVale("");
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Vale registrado."); carregarTudo();
   }
 
   async function confirmarFalta() {
@@ -128,8 +156,35 @@ export default function FuncionarioPage() {
     const { error } = await supabase.from("faltas_funcionario").insert({ funcionario_id: paraFalta.id });
     setParaFalta(null);
     if (error) { showToast(`Erro: ${error.message}`); return; }
-    showToast("Falta registrada.");
+    showToast("Falta registrada."); carregarTudo();
+  }
+
+  async function confirmarHoraExtra() {
+    if (!heOverlay || !heValido) return;
+    const valor = Number(heValor.replace(",", "."));
+    const { editando, func } = heOverlay;
+    let error;
+    if (editando) {
+      ({ error } = await supabase.from("horas_extras_funcionario")
+        .update({ valor, data: heData, observacao: heObs.trim() || null })
+        .eq("id", editando.id));
+    } else {
+      ({ error } = await supabase.from("horas_extras_funcionario").insert({
+        funcionario_id: func.id, valor, data: heData, observacao: heObs.trim() || null,
+      }));
+    }
+    fecharHeOverlay();
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast(editando ? "Horas extras atualizadas." : "Horas extras registradas.");
     carregarTudo();
+  }
+
+  async function confirmarExcluirHe() {
+    if (!paraExcluirHe) return;
+    const { error } = await supabase.from("horas_extras_funcionario").delete().eq("id", paraExcluirHe.id);
+    setParaExcluirHe(null);
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Horas extras excluídas."); carregarTudo();
   }
 
   async function confirmarEditarPagamento() {
@@ -150,21 +205,6 @@ export default function FuncionarioPage() {
     showToast("Pagamento excluído."); carregarTudo();
   }
 
-  async function confirmarVale() {
-    if (!paraVale) return;
-    const valor = Number(valorVale.replace(",", "."));
-    if (!(valor > 0)) return;
-    const { error } = await supabase.from("pagamentos_funcionario").insert({
-      funcionario_id: paraVale.id,
-      valor,
-      quinzena: null,
-    });
-    setParaVale(null); setValorVale("");
-    if (error) { showToast(`Erro: ${error.message}`); return; }
-    showToast("Vale registrado.");
-    carregarTudo();
-  }
-
   async function confirmarEditarDataPagamento() {
     if (!paraEditarDataPagamento || dataEditadaPagamento === "") return;
     const { error } = await supabase.from("pagamentos_funcionario")
@@ -172,7 +212,7 @@ export default function FuncionarioPage() {
       .eq("id", paraEditarDataPagamento.id);
     setParaEditarDataPagamento(null); setDataEditadaPagamento("");
     if (error) { showToast(`Erro: ${error.message}`); return; }
-    showToast("Data do pagamento atualizada."); carregarTudo();
+    showToast("Data atualizada."); carregarTudo();
   }
 
   async function confirmarEditarFalta() {
@@ -200,6 +240,10 @@ export default function FuncionarioPage() {
     const pagsQ2 = pagsMes.filter((p) => p.quinzena === 2);
     const vales = pagsMes.filter((p) => p.quinzena === null);
     const faltasMes = faltas.filter((fa) => fa.funcionario_id === f.id && isSameMonth(fa.created_at, ref));
+    const hesMes = horasExtras.filter((he) => {
+      const [y, m] = he.data.split("-");
+      return Number(y) === anoSel && Number(m) - 1 === mesSel && he.funcionario_id === f.id;
+    });
     const metaQ = f.valor_salario / 2;
     const pagoQ1 = pagsQ1.reduce((acc, p) => acc + p.valor, 0);
     const pagoQ2 = pagsQ2.reduce((acc, p) => acc + p.valor, 0);
@@ -207,7 +251,8 @@ export default function FuncionarioPage() {
     const saldoQ2 = Math.max(0, metaQ - pagoQ2);
     const totalPago = pagsMes.reduce((acc, p) => acc + p.valor, 0);
     const saldoMes = f.valor_salario - totalPago;
-    return { pagsMes, pagsQ1, pagsQ2, vales, faltasMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, totalPago, saldoMes };
+    const totalHe = hesMes.reduce((acc, he) => acc + he.valor, 0);
+    return { pagsQ1, pagsQ2, vales, faltasMes, hesMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, totalPago, saldoMes, totalHe };
   }
 
   const totalFolha = funcionarios.reduce((acc, f) => acc + dadosMes(f).saldoMes, 0);
@@ -271,7 +316,7 @@ export default function FuncionarioPage() {
               </h2>
               <ul className="space-y-2">
                 {funcionarios.map((f) => {
-                  const { saldoMes, pagoQ1, pagoQ2, metaQ } = dadosMes(f);
+                  const { saldoMes, pagoQ1, pagoQ2, metaQ, totalHe } = dadosMes(f);
                   const quitado = saldoMes <= 0;
                   return (
                     <li key={f.id} className="flex items-center justify-between gap-2">
@@ -280,6 +325,7 @@ export default function FuncionarioPage() {
                         <p className="text-xs text-muted">
                           1ª Q: {formatCurrency(pagoQ1)}/{formatCurrency(metaQ)} ·{" "}
                           2ª Q: {formatCurrency(pagoQ2)}/{formatCurrency(metaQ)}
+                          {totalHe > 0 ? ` · HE: ${formatCurrency(totalHe)}` : ""}
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
@@ -302,7 +348,7 @@ export default function FuncionarioPage() {
             {/* Cards individuais */}
             <ul className="space-y-4">
               {funcionarios.map((f) => {
-                const { pagsQ1, pagsQ2, vales, faltasMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, saldoMes } = dadosMes(f);
+                const { pagsQ1, pagsQ2, vales, faltasMes, hesMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, saldoMes, totalHe } = dadosMes(f);
                 const mostrarFaltas = expandidoId === f.id;
 
                 function PagamentoItem({ p }: { p: PagamentoFuncionario }) {
@@ -398,6 +444,39 @@ export default function FuncionarioPage() {
                       </div>
                     )}
 
+                    {/* Horas Extras */}
+                    <div className={`mt-2 rounded-xl border p-3 ${hesMes.length === 0 ? "border-border bg-surface-2" : "border-despesa/30 bg-despesa/5"}`}>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-extrabold uppercase text-muted">Horas Extras</p>
+                        {totalHe > 0 && (
+                          <p className="font-ticket text-xs font-bold text-foreground">{formatCurrency(totalHe)}</p>
+                        )}
+                      </div>
+                      {hesMes.length === 0 ? (
+                        <p className="mt-1 text-xs text-muted">Nenhuma hora extra no mês.</p>
+                      ) : (
+                        <ul className="mt-2 space-y-1 border-t border-border/40 pt-2">
+                          {hesMes.map((he) => (
+                            <li key={he.id} className="flex items-center justify-between gap-2 rounded-lg bg-surface-2 px-3 py-2">
+                              <div>
+                                <p className="font-ticket text-sm font-bold">{formatCurrency(he.valor)}</p>
+                                <p className="text-xs text-muted">
+                                  {formatDateOnly(he.data)}
+                                  {he.observacao ? ` · ${he.observacao}` : ""}
+                                </p>
+                              </div>
+                              <div className="flex gap-3">
+                                <button type="button" onClick={() => abrirHeOverlay(f, he)}
+                                  className="text-xs font-bold uppercase text-foreground">Editar</button>
+                                <button type="button" onClick={() => setParaExcluirHe(he)}
+                                  className="text-xs font-bold uppercase text-danger">Excluir</button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
                     {/* Faltas (toggle) */}
                     <button type="button" onClick={() => setExpandidoId(mostrarFaltas ? null : f.id)}
                       className="mt-3 text-xs font-bold uppercase text-muted underline">
@@ -438,6 +517,10 @@ export default function FuncionarioPage() {
                           className="flex-1 rounded-xl border border-demanda py-2 text-xs font-bold uppercase text-demanda">
                           Vale
                         </button>
+                        <button type="button" onClick={() => abrirHeOverlay(f, null)}
+                          className="flex-1 rounded-xl border border-despesa py-2 text-xs font-bold uppercase text-despesa">
+                          H. Extra
+                        </button>
                         <button type="button" onClick={() => setParaFalta(f)}
                           className="flex-1 rounded-xl border border-danger py-2 text-xs font-bold uppercase text-danger">
                           Falta
@@ -452,6 +535,7 @@ export default function FuncionarioPage() {
         )}
       </div>
 
+      {/* Dialogs */}
       <AmountDialog
         open={paraPagamento !== null}
         title={paraPagamento ? `Pagar ${paraPagamento.quinzena}ª Quinzena` : ""}
@@ -533,6 +617,72 @@ export default function FuncionarioPage() {
         onConfirm={confirmarExcluirFalta}
         onCancel={() => setParaExcluirFalta(null)}
       />
+
+      <ConfirmDialog
+        open={paraExcluirHe !== null}
+        title="Excluir horas extras?"
+        description="Esta ação não pode ser desfeita."
+        confirmLabel="Sim, excluir"
+        onConfirm={confirmarExcluirHe}
+        onCancel={() => setParaExcluirHe(null)}
+      />
+
+      {/* Overlay Horas Extras */}
+      {heOverlay && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-background">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <h2 className="font-extrabold uppercase tracking-wide">
+              {heOverlay.editando ? "Editar Horas Extras" : `H. Extra — ${heOverlay.func.nome}`}
+            </h2>
+            <button type="button" onClick={fecharHeOverlay} className="text-xl font-bold text-muted">✕</button>
+          </div>
+
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">Valor (R$)</label>
+              <input
+                inputMode="decimal"
+                placeholder="0,00"
+                value={heValor}
+                onChange={(e) => setHeValor(e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface px-4 py-4 font-ticket text-3xl font-bold text-foreground placeholder:text-muted focus:border-despesa focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">Data</label>
+              <input
+                type="date"
+                value={heData}
+                onChange={(e) => setHeData(e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground focus:border-despesa focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">Observação (opcional)</label>
+              <textarea
+                value={heObs}
+                onChange={(e) => setHeObs(e.target.value)}
+                rows={3}
+                placeholder="Ex: serviço extra sábado..."
+                className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground placeholder:text-muted focus:border-despesa focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="px-5 py-4">
+            <button
+              type="button"
+              disabled={!heValido}
+              onClick={confirmarHoraExtra}
+              className="w-full rounded-xl bg-despesa py-4 text-base font-extrabold uppercase tracking-wide text-black disabled:opacity-40"
+            >
+              {heOverlay.editando ? "Salvar Alteração" : "Registrar Horas Extras"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

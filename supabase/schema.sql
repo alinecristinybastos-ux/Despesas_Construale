@@ -61,6 +61,18 @@ create index if not exists pagamentos_funcionario_created_at_idx on public.pagam
 create index if not exists faltas_funcionario_funcionario_id_idx on public.faltas_funcionario (funcionario_id);
 create index if not exists faltas_funcionario_created_at_idx on public.faltas_funcionario (created_at desc);
 
+create table if not exists public.horas_extras_funcionario (
+  id uuid primary key default gen_random_uuid(),
+  funcionario_id uuid not null references public.funcionarios(id) on delete cascade,
+  valor numeric(10,2) not null check (valor > 0),
+  data date not null,
+  observacao text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists horas_extras_funcionario_id_idx on public.horas_extras_funcionario (funcionario_id);
+create index if not exists horas_extras_created_at_idx on public.horas_extras_funcionario (created_at desc);
+
 -- RLS: app interno de uso unico (sem login), liberado para a chave anon.
 -- Se no futuro for exposto publicamente, troque por policies com auth.
 alter table public.despesas enable row level security;
@@ -82,4 +94,9 @@ create policy "pagamentos_funcionario_all_anon" on public.pagamentos_funcionario
   for all using (true) with check (true);
 
 create policy "faltas_funcionario_all_anon" on public.faltas_funcionario
+  for all using (true) with check (true);
+
+alter table public.horas_extras_funcionario enable row level security;
+
+create policy "horas_extras_all_anon" on public.horas_extras_funcionario
   for all using (true) with check (true);

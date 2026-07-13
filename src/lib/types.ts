@@ -95,6 +95,15 @@ export interface FaltaFuncionario {
   created_at: string;
 }
 
+export interface HoraExtra {
+  id: string;
+  funcionario_id: string;
+  valor: number;
+  data: string; // YYYY-MM-DD
+  observacao: string | null;
+  created_at: string;
+}
+
 export interface Venda {
   id: string;
   numero: number;
