@@ -12,6 +12,7 @@ export const CATEGORIAS_DESPESA = [
   "CONTAS_FX_PESS",
   "EMPRESTIMOS",
   "IMPOSTO",
+  "CONTAS_FIXAS_PJ",
 ] as const;
 
 export type CategoriaDespesa = (typeof CATEGORIAS_DESPESA)[number];
@@ -30,6 +31,7 @@ export const CATEGORIA_DESPESA_LABEL: Record<CategoriaDespesa, string> = {
   CONTAS_FX_PESS: "Contas Fx Pess.",
   EMPRESTIMOS: "Empréstimos",
   IMPOSTO: "Imposto",
+  CONTAS_FIXAS_PJ: "Contas Fixas PJ",
 };
 
 export const SERVICOS_DEMANDA = [
