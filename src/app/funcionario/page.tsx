@@ -247,12 +247,20 @@ export default function FuncionarioPage() {
     const metaQ = f.valor_salario / 2;
     const pagoQ1 = pagsQ1.reduce((acc, p) => acc + p.valor, 0);
     const pagoQ2 = pagsQ2.reduce((acc, p) => acc + p.valor, 0);
-    const saldoQ1 = Math.max(0, metaQ - pagoQ1);
-    const saldoQ2 = Math.max(0, metaQ - pagoQ2);
+    const totalVales = vales.reduce((acc, p) => acc + p.valor, 0);
+
+    // Vales descontados da Q1 primeiro; sobra vai para Q2
+    const rawSaldoQ1 = metaQ - pagoQ1;
+    const valesQ1 = Math.min(totalVales, Math.max(0, rawSaldoQ1));
+    const saldoQ1 = Math.max(0, rawSaldoQ1 - valesQ1);
+    const valesQ2 = totalVales - valesQ1;
+    const rawSaldoQ2 = metaQ - pagoQ2;
+    const saldoQ2 = Math.max(0, rawSaldoQ2 - valesQ2);
+
     const totalPago = pagsMes.reduce((acc, p) => acc + p.valor, 0);
     const saldoMes = f.valor_salario - totalPago;
     const totalHe = hesMes.reduce((acc, he) => acc + he.valor, 0);
-    return { pagsQ1, pagsQ2, vales, faltasMes, hesMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, totalPago, saldoMes, totalHe };
+    return { pagsQ1, pagsQ2, vales, faltasMes, hesMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, valesQ1, valesQ2, totalPago, saldoMes, totalHe };
   }
 
   const totalFolha = funcionarios.reduce((acc, f) => acc + dadosMes(f).saldoMes, 0);
@@ -348,7 +356,7 @@ export default function FuncionarioPage() {
             {/* Cards individuais */}
             <ul className="space-y-4">
               {funcionarios.map((f) => {
-                const { pagsQ1, pagsQ2, vales, faltasMes, hesMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, saldoMes, totalHe } = dadosMes(f);
+                const { pagsQ1, pagsQ2, vales, faltasMes, hesMes, metaQ, pagoQ1, pagoQ2, saldoQ1, saldoQ2, valesQ1, valesQ2, saldoMes, totalHe } = dadosMes(f);
                 const mostrarFaltas = expandidoId === f.id;
 
                 function PagamentoItem({ p }: { p: PagamentoFuncionario }) {
@@ -400,6 +408,9 @@ export default function FuncionarioPage() {
                         <div className="text-right">
                           <p className="font-ticket text-xs">Meta: {formatCurrency(metaQ)}</p>
                           <p className="font-ticket text-xs text-success">Pago: {formatCurrency(pagoQ1)}</p>
+                          {valesQ1 > 0 && (
+                            <p className="font-ticket text-xs text-demanda">Vale: -{formatCurrency(valesQ1)}</p>
+                          )}
                           {saldoQ1 > 0
                             ? <p className="font-ticket text-xs font-bold text-danger">Falta: {formatCurrency(saldoQ1)}</p>
                             : <p className="text-xs font-bold text-success">✓ Quitado</p>}
@@ -422,6 +433,9 @@ export default function FuncionarioPage() {
                         <div className="text-right">
                           <p className="font-ticket text-xs">Meta: {formatCurrency(metaQ)}</p>
                           <p className="font-ticket text-xs text-success">Pago: {formatCurrency(pagoQ2)}</p>
+                          {valesQ2 > 0 && (
+                            <p className="font-ticket text-xs text-demanda">Vale: -{formatCurrency(valesQ2)}</p>
+                          )}
                           {saldoQ2 > 0
                             ? <p className="font-ticket text-xs font-bold text-danger">Falta: {formatCurrency(saldoQ2)}</p>
                             : <p className="text-xs font-bold text-success">✓ Quitado</p>}
