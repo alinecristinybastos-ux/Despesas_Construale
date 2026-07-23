@@ -5,8 +5,8 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { supabase } from "@/lib/supabase";
 import PageHeader from "@/components/PageHeader";
-import type { Despesa, PagamentoFuncionario, Venda, Servico } from "@/lib/types";
-import { CATEGORIA_DESPESA_LABEL, CATEGORIAS_DESPESA } from "@/lib/types";
+import type { Despesa, PagamentoFuncionario, Prolabore, Venda, Servico } from "@/lib/types";
+import { CATEGORIA_DESPESA_LABEL, CATEGORIAS_DESPESA, CATEGORIA_PROLABORE_LABEL, CATEGORIAS_PROLABORE } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 
 function mesLabel(ano: number, mes: number) {
@@ -66,20 +66,23 @@ export default function FinanceiroPage() {
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [salarios, setSalarios] = useState<PagamentoFuncionario[]>([]);
+  const [prolabores, setProlabores] = useState<Prolabore[]>([]);
 
   async function carregar() {
     setLoading(true);
-    const [vendasSnap, servicosSnap, despesasRes, salariosRes] = await Promise.all([
+    const [vendasSnap, servicosSnap, despesasRes, salariosRes, prolaboreRes] = await Promise.all([
       getDocs(collection(db, "vendas")),
       getDocs(collection(db, "servicos")),
       supabase.from("despesas").select("*"),
       supabase.from("pagamentos_funcionario").select("*"),
+      supabase.from("prolabore").select("*"),
     ]);
 
     setVendas(vendasSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Venda)));
     setServicos(servicosSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Servico)));
     setDespesas((despesasRes.data as Despesa[]) ?? []);
     setSalarios((salariosRes.data as PagamentoFuncionario[]) ?? []);
+    setProlabores((prolaboreRes.data as Prolabore[]) ?? []);
     setLoading(false);
   }
 
@@ -126,7 +129,18 @@ export default function FinanceiroPage() {
   const salariosMes = salarios.filter((s) => inMonth(s.created_at, ano, mes));
   const totalSalarios = salariosMes.reduce((acc, s) => acc + s.valor, 0);
 
-  const totalCustos = totalDespesas + totalSalarios;
+  // --- Pró-labore ---
+  const prolaboresMes = prolabores.filter((p) => inMonth(p.created_at, ano, mes));
+  const totalProlabore = prolaboresMes.reduce((acc, p) => acc + p.valor, 0);
+  const totalPorCategoriaProlabore = CATEGORIAS_PROLABORE.reduce(
+    (acc, cat) => {
+      acc[cat] = prolaboresMes.filter((p) => p.categoria === cat).reduce((s, p) => s + p.valor, 0);
+      return acc;
+    },
+    {} as Record<string, number>,
+  );
+
+  const totalCustos = totalDespesas + totalSalarios + totalProlabore;
   const resultado = totalReceitas - totalCustos;
 
   // --- CSV export ---
@@ -145,6 +159,10 @@ export default function FinanceiroPage() {
       [],
       ["PESSOAL"],
       ["Salários pagos", totalSalarios],
+      [],
+      ["PRÓ-LABORE"],
+      ...CATEGORIAS_PROLABORE.filter((c) => totalPorCategoriaProlabore[c] > 0).map((c) => [CATEGORIA_PROLABORE_LABEL[c], totalPorCategoriaProlabore[c]]),
+      ["TOTAL PRÓ-LABORE", totalProlabore],
       [],
       ["TOTAL CUSTOS", totalCustos],
       ["RESULTADO", resultado],
@@ -234,6 +252,7 @@ export default function FinanceiroPage() {
               <p className="mb-1 text-xs font-bold uppercase text-despesa">Saídas</p>
               <Row label="Despesas operacionais" value={totalDespesas} indent accent="despesa" />
               <Row label="Salários pagos" value={totalSalarios} indent accent="despesa" />
+              <Row label="Pró-labore" value={totalProlabore} indent accent="despesa" />
               <Row label="Total saídas" value={totalCustos} bold accent="despesa" />
 
               <div className="mt-3 border-t border-border pt-3">
@@ -281,6 +300,20 @@ export default function FinanceiroPage() {
               <p className="mb-1 text-xs font-bold uppercase text-muted">Pessoal</p>
               <Row label="Salários pagos" value={totalSalarios} indent />
               <Row label="(-) Total pessoal" value={totalSalarios} bold accent="despesa" />
+
+              <div className="mt-3" />
+              <p className="mb-1 text-xs font-bold uppercase text-prolabore">Pró-labore</p>
+              {CATEGORIAS_PROLABORE.map((cat) =>
+                totalPorCategoriaProlabore[cat] > 0 ? (
+                  <Row
+                    key={cat}
+                    label={CATEGORIA_PROLABORE_LABEL[cat]}
+                    value={totalPorCategoriaProlabore[cat]}
+                    indent
+                  />
+                ) : null,
+              )}
+              <Row label="(-) Total pró-labore" value={totalProlabore} bold accent="despesa" />
 
               <div className="mt-3 border-t-2 border-border pt-3">
                 <Row
