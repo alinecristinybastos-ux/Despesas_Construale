@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/despesa", label: "Despesa", accent: "bg-despesa" },
   { href: "/funcionario", label: "Equipe", accent: "bg-demanda" },
+  { href: "/prolabore", label: "Pró-Lab", accent: "bg-prolabore" },
   { href: "/historico", label: "Histórico", accent: "bg-despesa" },
   { href: "/resumo", label: "Resumo", accent: "bg-despesa" },
-  { href: "/prolabore", label: "Pró-Lab", accent: "bg-prolabore" },
   { href: "/financeiro", label: "Financeiro", accent: "bg-success" },
 ] as const;
 
