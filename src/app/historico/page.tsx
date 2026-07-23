@@ -3,14 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import Chip from "@/components/Chip";
+import Toast from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
 import {
+  CATEGORIAS_DESPESA,
   CATEGORIA_DESPESA_LABEL,
   SERVICO_DEMANDA_LABEL,
+  type CategoriaDespesa,
   type Despesa,
   type Demanda,
 } from "@/lib/types";
-import { formatCurrency, formatDateLabel, formatTime, dayKey } from "@/lib/format";
+import { formatCurrency, formatDateLabel, formatDateOnly, formatTime, dayKey } from "@/lib/format";
 
 type Tipo = "despesa" | "demanda";
 
@@ -32,23 +36,62 @@ export default function HistoricoPage() {
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [busca, setBusca] = useState("");
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<string | null>(null);
+
   const [paraConfirmar, setParaConfirmar] = useState<Despesa | null>(null);
   const [paraExcluir, setParaExcluir] = useState<Despesa | null>(null);
   const [paraConfirmarDemanda, setParaConfirmarDemanda] = useState<Demanda | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const [d1, d2] = await Promise.all([
-        supabase.from("despesas").select("*").order("created_at", { ascending: false }),
-        supabase.from("demandas").select("*").order("created_at", { ascending: false }),
-      ]);
-      setDespesas((d1.data as Despesa[]) ?? []);
-      setDemandas((d2.data as Demanda[]) ?? []);
-      setLoading(false);
-    }
+  // Estados de edição
+  const [paraEditar, setParaEditar] = useState<Despesa | null>(null);
+  const [editValor, setEditValor] = useState("");
+  const [editCategoria, setEditCategoria] = useState<CategoriaDespesa | null>(null);
+  const [editObservacao, setEditObservacao] = useState("");
+  const [editData, setEditData] = useState("");
+
+  const editValido = Number(editValor.replace(",", ".")) > 0 && editCategoria !== null;
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }
+
+  async function load() {
+    setLoading(true);
+    const [d1, d2] = await Promise.all([
+      supabase.from("despesas").select("*").order("created_at", { ascending: false }),
+      supabase.from("demandas").select("*").order("created_at", { ascending: false }),
+    ]);
+    setDespesas((d1.data as Despesa[]) ?? []);
+    setDemandas((d2.data as Demanda[]) ?? []);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  function abrirEditar(d: Despesa) {
+    setParaEditar(d);
+    setEditValor(String(d.valor).replace(".", ","));
+    setEditCategoria(d.categoria);
+    setEditObservacao(d.observacao ?? "");
+    setEditData(d.created_at.slice(0, 10));
+  }
+
+  async function confirmarEditar() {
+    if (!paraEditar || !editCategoria) return;
+    const valor = Number(editValor.replace(",", "."));
+    if (!(valor > 0)) return;
+    const { error } = await supabase.from("despesas").update({
+      valor,
+      categoria: editCategoria,
+      observacao: editObservacao.trim() || null,
+      created_at: new Date(`${editData}T12:00:00`).toISOString(),
+    }).eq("id", paraEditar.id);
+    setParaEditar(null);
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Despesa atualizada.");
     load();
-  }, []);
+  }
 
   async function confirmarToggleLancado() {
     if (!paraConfirmar) return;
@@ -147,6 +190,7 @@ export default function HistoricoPage() {
 
   return (
     <div>
+      <Toast message={toast} />
       <PageHeader title="Histórico" subtitle="Despesas e demandas registradas" />
 
       <div className="space-y-4 px-5">
@@ -238,17 +282,29 @@ export default function HistoricoPage() {
                             >
                               {item.status.label}
                             </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setParaExcluir(
-                                  despesas.find((d) => d.id === item.id) ?? null,
-                                )
-                              }
-                              className="mt-1 block text-xs font-bold uppercase text-danger"
-                            >
-                              Excluir
-                            </button>
+                            <div className="mt-1 flex justify-end gap-3">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const d = despesas.find((d) => d.id === item.id);
+                                  if (d) abrirEditar(d);
+                                }}
+                                className="text-xs font-bold uppercase text-foreground"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setParaExcluir(
+                                    despesas.find((d) => d.id === item.id) ?? null,
+                                  )
+                                }
+                                className="text-xs font-bold uppercase text-danger"
+                              >
+                                Excluir
+                              </button>
+                            </div>
                           </>
                         ) : (
                           <button
@@ -315,6 +371,75 @@ export default function HistoricoPage() {
         onConfirm={confirmarToggleConcluido}
         onCancel={() => setParaConfirmarDemanda(null)}
       />
+
+      {/* Overlay de edição */}
+      {paraEditar && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-background">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <h2 className="font-extrabold uppercase tracking-wide">Editar Despesa</h2>
+            <button type="button" onClick={() => setParaEditar(null)}
+              className="text-xl font-bold text-muted">✕</button>
+          </div>
+
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">Valor (R$)</label>
+              <input
+                inputMode="decimal"
+                value={editValor}
+                onChange={(e) => setEditValor(e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface px-4 py-4 font-ticket text-3xl font-bold text-foreground focus:border-despesa focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">Categoria</label>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIAS_DESPESA.map((cat) => (
+                  <Chip
+                    key={cat}
+                    label={CATEGORIA_DESPESA_LABEL[cat]}
+                    selected={editCategoria === cat}
+                    onClick={() => setEditCategoria(cat)}
+                    accent="despesa"
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">Observação</label>
+              <textarea
+                value={editObservacao}
+                onChange={(e) => setEditObservacao(e.target.value)}
+                rows={3}
+                className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground focus:border-despesa focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">Data</label>
+              <input
+                type="date"
+                value={editData}
+                onChange={(e) => setEditData(e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-foreground focus:border-despesa focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="px-5 py-4">
+            <button
+              type="button"
+              disabled={!editValido}
+              onClick={confirmarEditar}
+              className="w-full rounded-xl bg-despesa py-4 text-base font-extrabold uppercase tracking-wide text-black disabled:opacity-40"
+            >
+              Salvar Alteração
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
