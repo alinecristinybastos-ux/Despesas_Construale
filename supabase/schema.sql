@@ -106,7 +106,8 @@ create table if not exists public.prolabore (
   id uuid primary key default gen_random_uuid(),
   valor numeric(10,2) not null check (valor > 0),
   categoria text not null check (categoria in (
-    'COMBUSTIVEL', 'ALIMENTACAO', 'CONTAS_FIXAS', 'VESTUARIO', 'LAZER', 'SAUDE'
+    'COMBUSTIVEL', 'ALIMENTACAO', 'CONTAS_FIXAS', 'VESTUARIO', 'LAZER', 'SAUDE',
+    'DIVERSOS', 'JUROS_TARIFAS'
   )),
   observacao text,
   created_at timestamptz not null default now()
