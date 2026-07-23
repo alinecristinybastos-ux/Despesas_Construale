@@ -96,12 +96,13 @@ export default function FinanceiroPage() {
 
   // --- Receitas ---
   const vendasMes = vendas.filter((v) => inMonth(v.data, ano, mes));
-  const receitaVendas = vendasMes
-    .filter((v) => v.statusPagamento === "recebido")
-    .reduce((acc, v) => acc + (v.valorPago || 0), 0);
-  const vendasAReceber = vendasMes
-    .filter((v) => v.statusPagamento === "a_receber")
-    .reduce((acc, v) => acc + (v.valor || 0), 0);
+  // valorPago = valor já recebido independente do status
+  const receitaVendas = vendasMes.reduce((acc, v) => acc + (v.valorPago || 0), 0);
+  // a receber = saldo restante das vendas não quitadas
+  const vendasAReceber = vendasMes.reduce((acc, v) => {
+    const restante = (v.valor || 0) - (v.valorPago || 0);
+    return acc + (restante > 0 ? restante : 0);
+  }, 0);
 
   const receitaServicos = servicos.reduce((acc, s) => {
     const pagsMes = (s.pagamentos ?? []).filter((p) => inMonth(p.data, ano, mes));

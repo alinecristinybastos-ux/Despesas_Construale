@@ -123,8 +123,11 @@ export default function ResumoPage() {
         ? dateInMonth(v.data, anoSel, mesSel)
         : dateInRange(v.data, inicioPeriodo, fimPeriodo);
       if (!noMes) continue;
-      if (v.statusPagamento === "recebido") recVendas += v.valorPago || 0;
-      else aReceber += v.valor || 0;
+      // valorPago = valor já recebido independente do status
+      recVendas += v.valorPago || 0;
+      // a receber = saldo restante das vendas não quitadas
+      const restante = (v.valor || 0) - (v.valorPago || 0);
+      if (restante > 0) aReceber += restante;
     }
 
     for (const s of servicos) {
