@@ -108,6 +108,34 @@ export interface HoraExtra {
   created_at: string;
 }
 
+export const CATEGORIAS_PROLABORE = [
+  "COMBUSTIVEL",
+  "ALIMENTACAO",
+  "CONTAS_FIXAS",
+  "VESTUARIO",
+  "LAZER",
+  "SAUDE",
+] as const;
+
+export type CategoriaProlabore = (typeof CATEGORIAS_PROLABORE)[number];
+
+export const CATEGORIA_PROLABORE_LABEL: Record<CategoriaProlabore, string> = {
+  COMBUSTIVEL: "Combustível",
+  ALIMENTACAO: "Alimentação",
+  CONTAS_FIXAS: "Contas Fixas",
+  VESTUARIO: "Vestuário",
+  LAZER: "Lazer",
+  SAUDE: "Saúde",
+};
+
+export interface Prolabore {
+  id: string;
+  valor: number;
+  categoria: CategoriaProlabore;
+  observacao: string | null;
+  created_at: string;
+}
+
 export interface Venda {
   id: string;
   numero: number;

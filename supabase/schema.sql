@@ -101,3 +101,20 @@ alter table public.horas_extras_funcionario enable row level security;
 
 create policy "horas_extras_all_anon" on public.horas_extras_funcionario
   for all using (true) with check (true);
+
+create table if not exists public.prolabore (
+  id uuid primary key default gen_random_uuid(),
+  valor numeric(10,2) not null check (valor > 0),
+  categoria text not null check (categoria in (
+    'COMBUSTIVEL', 'ALIMENTACAO', 'CONTAS_FIXAS', 'VESTUARIO', 'LAZER', 'SAUDE'
+  )),
+  observacao text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists prolabore_created_at_idx on public.prolabore (created_at desc);
+
+alter table public.prolabore enable row level security;
+
+create policy "prolabore_all_anon" on public.prolabore
+  for all using (true) with check (true);

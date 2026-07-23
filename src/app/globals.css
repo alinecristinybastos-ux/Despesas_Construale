@@ -13,6 +13,8 @@
   --demanda-dim: #4a3a10;
   --danger: #e5484d;
   --success: #3ba55d;
+  --prolabore: #06b6d4;
+  --prolabore-dim: #0a2e36;
 }
 
 @theme inline {
@@ -28,6 +30,8 @@
   --color-demanda-dim: var(--demanda-dim);
   --color-danger: var(--danger);
   --color-success: var(--success);
+  --color-prolabore: var(--prolabore);
+  --color-prolabore-dim: var(--prolabore-dim);
   --font-sans: var(--font-archivo);
   --font-mono: var(--font-ticket);
 }

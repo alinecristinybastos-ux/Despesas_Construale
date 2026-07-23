@@ -1,7 +1,7 @@
 interface PageHeaderProps {
   title: string;
   subtitle?: string;
-  accent?: "despesa" | "demanda" | "neutral";
+  accent?: "despesa" | "demanda" | "prolabore" | "neutral";
 }
 
 export default function PageHeader({
@@ -14,7 +14,9 @@ export default function PageHeader({
       ? "bg-despesa"
       : accent === "demanda"
         ? "bg-demanda"
-        : "bg-border";
+        : accent === "prolabore"
+          ? "bg-prolabore"
+          : "bg-border";
 
   return (
     <header className="px-5 pt-6 pb-4">

@@ -4,7 +4,7 @@ interface ChipProps {
   label: string;
   selected: boolean;
   onClick: () => void;
-  accent?: "despesa" | "demanda";
+  accent?: "despesa" | "demanda" | "prolabore";
 }
 
 export default function Chip({
@@ -16,6 +16,8 @@ export default function Chip({
   const accentClasses =
     accent === "despesa"
       ? "bg-despesa border-despesa text-black"
+      : accent === "prolabore"
+      ? "bg-prolabore border-prolabore text-black"
       : "bg-demanda border-demanda text-black";
 
   return (
