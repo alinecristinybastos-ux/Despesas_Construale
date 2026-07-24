@@ -111,7 +111,7 @@ export const CATEGORIAS_PROLABORE = [
   "VESTUARIO",
   "LAZER",
   "SAUDE",
-  "DIVERSOS",
+  "OUTROS",
   "JUROS_TARIFAS",
 ] as const;
 
@@ -124,7 +124,7 @@ export const CATEGORIA_PROLABORE_LABEL: Record<CategoriaProlabore, string> = {
   VESTUARIO: "Vestuário",
   LAZER: "Lazer",
   SAUDE: "Saúde",
-  DIVERSOS: "Diversos",
+  OUTROS: "Outros",
   JUROS_TARIFAS: "Juros/Tarifas",
 };
 
