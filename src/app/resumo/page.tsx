@@ -11,11 +11,16 @@ import { supabase } from "@/lib/supabase";
 import {
   CATEGORIAS_DESPESA,
   CATEGORIA_DESPESA_LABEL,
+  CATEGORIA_PROLABORE_LABEL,
+  type CategoriaProlabore,
   type Despesa,
   type CategoriaDespesa,
   type Venda,
   type Servico,
 } from "@/lib/types";
+
+// Categorias que existem em ambas as abas e podem ser migradas
+const CATS_MIGRAVEIS: CategoriaDespesa[] = ["COMBUSTIVEL", "ALIMENTACAO"];
 import { formatCurrency, formatDateLabel, formatDateOnly, dayKey } from "@/lib/format";
 import { exportCsv, exportPdf } from "@/lib/export";
 
@@ -67,8 +72,16 @@ export default function ResumoPage() {
   const [editObservacao, setEditObservacao] = useState("");
   const [editData, setEditData] = useState("");
   const [paraExcluir, setParaExcluir] = useState<Despesa | null>(null);
+  const [migracaoAberta, setMigracaoAberta] = useState(false);
+  const [migrandoId, setMigrandoId] = useState<string | null>(null);
 
   const editValido = Number(editValor.replace(",", ".")) > 0 && editCategoria !== null;
+
+  // Despesas com categorias que também existem no Pró-labore
+  const candidatosMigracao = useMemo(
+    () => despesas.filter((d) => CATS_MIGRAVEIS.includes(d.categoria as CategoriaDespesa)),
+    [despesas],
+  );
 
   function showToast(msg: string) {
     setToast(msg);
@@ -127,6 +140,22 @@ export default function ResumoPage() {
     if (error) { showToast(`Erro: ${error.message}`); return; }
     showToast("Despesa excluída.");
     setDespesas((prev) => prev.filter((d) => d.id !== paraExcluir.id));
+  }
+
+  async function moverParaProlabore(d: Despesa) {
+    setMigrandoId(d.id);
+    const { error: insErr } = await supabase.from("prolabore").insert({
+      valor: d.valor,
+      categoria: d.categoria as CategoriaProlabore,
+      observacao: d.observacao,
+      created_at: d.created_at,
+    });
+    if (insErr) { showToast(`Erro: ${insErr.message}`); setMigrandoId(null); return; }
+    const { error: delErr } = await supabase.from("despesas").delete().eq("id", d.id);
+    setMigrandoId(null);
+    if (delErr) { showToast(`Erro: ${delErr.message}`); return; }
+    setDespesas((prev) => prev.filter((x) => x.id !== d.id));
+    showToast("Movido para Pró-labore.");
   }
 
   function navMes(delta: number) {
@@ -250,8 +279,64 @@ export default function ResumoPage() {
     <div>
       <PageHeader title="Relatório" subtitle="Receitas, despesas e saldo do período" accent="despesa" />
 
-      {/* Toast */}
       <Toast message={toast} />
+
+      {/* Overlay de migração */}
+      {migracaoAberta && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-background">
+          <header className="flex items-center gap-3 border-b border-border px-5 py-4">
+            <button type="button" onClick={() => setMigracaoAberta(false)} className="text-muted text-lg">✕</button>
+            <div>
+              <h2 className="font-extrabold uppercase tracking-wide">Migrar para Pró-labore</h2>
+              <p className="text-xs text-muted">{candidatosMigracao.length} despesas com categorias pessoais</p>
+            </div>
+          </header>
+
+          <div className="flex-1 overflow-y-auto p-5">
+            {candidatosMigracao.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted">Nenhuma despesa para migrar.</p>
+            ) : (
+              <ul className="space-y-3">
+                {candidatosMigracao.map((d) => (
+                  <li key={d.id} className="rounded-xl border border-border bg-surface px-4 py-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-ticket font-bold">{formatCurrency(d.valor)}</p>
+                        <p className="mt-0.5 text-xs text-muted">
+                          {CATEGORIA_DESPESA_LABEL[d.categoria]} · {formatDateOnly(d.created_at.slice(0, 10))}
+                        </p>
+                        {d.observacao && (
+                          <p className="mt-0.5 truncate text-xs text-muted">{d.observacao}</p>
+                        )}
+                      </div>
+                      <span className="shrink-0 rounded-full bg-prolabore/20 px-2 py-0.5 text-xs font-bold text-prolabore">
+                        {CATEGORIA_PROLABORE_LABEL[d.categoria as CategoriaProlabore]}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={migrandoId === d.id}
+                        onClick={() => moverParaProlabore(d)}
+                        className="flex-1 rounded-xl bg-prolabore py-2 text-xs font-extrabold uppercase tracking-wide text-black disabled:opacity-40"
+                      >
+                        {migrandoId === d.id ? "Movendo..." : "Mover para Pró-labore"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setParaExcluir(d)}
+                        className="rounded-xl border border-despesa/40 px-3 py-2 text-xs font-bold text-despesa"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Confirm excluir */}
       <ConfirmDialog
@@ -586,6 +671,17 @@ export default function ResumoPage() {
                   );
                 })}
               </div>
+            )}
+
+            {/* Migração */}
+            {candidatosMigracao.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setMigracaoAberta(true)}
+                className="w-full rounded-xl border border-prolabore/50 bg-prolabore/10 py-4 text-sm font-extrabold uppercase tracking-wide text-prolabore"
+              >
+                ⚠ {candidatosMigracao.length} despesa{candidatosMigracao.length > 1 ? "s" : ""} para migrar ao Pró-labore
+              </button>
             )}
 
             {/* Exportar */}
