@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import PageHeader from "@/components/PageHeader";
+import Chip from "@/components/Chip";
+import Toast from "@/components/Toast";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import { supabase } from "@/lib/supabase";
 import {
   CATEGORIAS_DESPESA,
@@ -55,6 +58,27 @@ export default function ResumoPage() {
   const [tipoRel, setTipoRel] = useState<TipoRel>("categoria");
   const [catExpandida, setCatExpandida] = useState<CategoriaDespesa | null>(null);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState<string | null>(null);
+
+  // estados de edição
+  const [paraEditar, setParaEditar] = useState<Despesa | null>(null);
+  const [editValor, setEditValor] = useState("");
+  const [editCategoria, setEditCategoria] = useState<CategoriaDespesa | null>(null);
+  const [editObservacao, setEditObservacao] = useState("");
+  const [editData, setEditData] = useState("");
+  const [paraExcluir, setParaExcluir] = useState<Despesa | null>(null);
+
+  const editValido = Number(editValor.replace(",", ".")) > 0 && editCategoria !== null;
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }
+
+  async function carregarDespesas() {
+    const res = await supabase.from("despesas").select("*").order("created_at", { ascending: false });
+    setDespesas((res.data as Despesa[]) ?? []);
+  }
 
   useEffect(() => {
     async function load() {
@@ -71,6 +95,39 @@ export default function ResumoPage() {
     }
     load();
   }, []);
+
+  function abrirEditar(d: Despesa) {
+    setParaEditar(d);
+    setEditValor(String(d.valor).replace(".", ","));
+    setEditCategoria(d.categoria);
+    setEditObservacao(d.observacao ?? "");
+    setEditData(d.created_at.slice(0, 10));
+  }
+
+  async function confirmarEditar() {
+    if (!paraEditar || !editCategoria) return;
+    const valor = Number(editValor.replace(",", "."));
+    if (!(valor > 0)) return;
+    const { error } = await supabase.from("despesas").update({
+      valor,
+      categoria: editCategoria,
+      observacao: editObservacao.trim() || null,
+      created_at: new Date(`${editData}T12:00:00`).toISOString(),
+    }).eq("id", paraEditar.id);
+    setParaEditar(null);
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Despesa atualizada.");
+    carregarDespesas();
+  }
+
+  async function confirmarExcluir() {
+    if (!paraExcluir) return;
+    const { error } = await supabase.from("despesas").delete().eq("id", paraExcluir.id);
+    setParaExcluir(null);
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Despesa excluída.");
+    setDespesas((prev) => prev.filter((d) => d.id !== paraExcluir.id));
+  }
 
   function navMes(delta: number) {
     let m = mesSel + delta;
@@ -192,6 +249,84 @@ export default function ResumoPage() {
   return (
     <div>
       <PageHeader title="Relatório" subtitle="Receitas, despesas e saldo do período" accent="despesa" />
+
+      {/* Toast */}
+      <Toast message={toast} />
+
+      {/* Confirm excluir */}
+      <ConfirmDialog
+        open={!!paraExcluir}
+        title="Excluir despesa"
+        description={paraExcluir ? `Excluir despesa de ${formatCurrency(paraExcluir.valor)}?` : undefined}
+        confirmLabel="Excluir"
+        onConfirm={confirmarExcluir}
+        onCancel={() => setParaExcluir(null)}
+      />
+
+      {/* Overlay edição */}
+      {paraEditar && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-background">
+          <header className="flex items-center gap-3 border-b border-border px-5 py-4">
+            <button type="button" onClick={() => setParaEditar(null)} className="text-muted text-lg">✕</button>
+            <h2 className="font-extrabold uppercase tracking-wide">Editar Despesa</h2>
+          </header>
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-muted">Valor (R$)</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={editValor}
+                onChange={(e) => setEditValor(e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface-2 px-4 py-3 font-ticket text-2xl font-bold"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-muted">Categoria</label>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIAS_DESPESA.map((cat) => (
+                  <Chip
+                    key={cat}
+                    label={CATEGORIA_DESPESA_LABEL[cat]}
+                    selected={editCategoria === cat}
+                    onClick={() => setEditCategoria(cat)}
+                    accent="despesa"
+                  />
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-muted">Observação</label>
+              <input
+                type="text"
+                value={editObservacao}
+                onChange={(e) => setEditObservacao(e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm"
+                placeholder="Detalhes adicionais..."
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-muted">Data</label>
+              <input
+                type="date"
+                value={editData}
+                onChange={(e) => setEditData(e.target.value)}
+                className="w-full rounded-xl border border-border bg-surface-2 px-4 py-3 text-sm"
+              />
+            </div>
+          </div>
+          <div className="border-t border-border p-5">
+            <button
+              type="button"
+              onClick={confirmarEditar}
+              disabled={!editValido}
+              className="w-full rounded-xl bg-despesa py-4 font-extrabold uppercase tracking-wide text-black disabled:opacity-40"
+            >
+              Salvar alterações
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4 px-5 pb-6">
         {/* Seletor de período */}
@@ -348,15 +483,22 @@ export default function ResumoPage() {
                                 {d.observacao ? ` · ${d.observacao}` : ""}
                               </p>
                             </div>
-                            <span
-                              className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-bold uppercase ${
-                                d.lancado_no_sistema
-                                  ? "border-success text-success"
-                                  : "border-border text-muted"
-                              }`}
-                            >
-                              {d.lancado_no_sistema ? "Lançado" : "Pendente"}
-                            </span>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => abrirEditar(d)}
+                                className="rounded-lg border border-border px-2 py-1 text-xs font-bold text-muted"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setParaExcluir(d)}
+                                className="rounded-lg border border-despesa/40 px-2 py-1 text-xs font-bold text-despesa"
+                              >
+                                Excluir
+                              </button>
+                            </div>
                           </div>
                         </li>
                       ))}
@@ -403,30 +545,39 @@ export default function ResumoPage() {
                       </div>
 
                       {aberta && (
-                        <ul className="space-y-1 border-t border-border/40 px-4 py-3">
+                        <ul className="space-y-2 border-t border-border/40 px-4 py-3">
                           {itens.map((d) => (
                             <li
                               key={d.id}
-                              className="flex items-center justify-between gap-3 py-1"
+                              className="rounded-xl border border-border bg-surface-2 px-3 py-2"
                             >
-                              <div className="min-w-0">
-                                <p className="font-ticket text-sm font-bold">
-                                  {formatCurrency(d.valor)}
-                                </p>
-                                <p className="truncate text-xs text-muted">
-                                  {formatDateOnly(d.created_at.slice(0, 10))}
-                                  {d.observacao ? ` · ${d.observacao}` : ""}
-                                </p>
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="font-ticket text-sm font-bold">
+                                    {formatCurrency(d.valor)}
+                                  </p>
+                                  <p className="truncate text-xs text-muted">
+                                    {formatDateOnly(d.created_at.slice(0, 10))}
+                                    {d.observacao ? ` · ${d.observacao}` : ""}
+                                  </p>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => abrirEditar(d)}
+                                    className="rounded-lg border border-border px-2 py-1 text-xs font-bold text-muted"
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setParaExcluir(d)}
+                                    className="rounded-lg border border-despesa/40 px-2 py-1 text-xs font-bold text-despesa"
+                                  >
+                                    Excluir
+                                  </button>
+                                </div>
                               </div>
-                              <span
-                                className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-bold uppercase ${
-                                  d.lancado_no_sistema
-                                    ? "border-success text-success"
-                                    : "border-border text-muted"
-                                }`}
-                              >
-                                {d.lancado_no_sistema ? "Lançado" : "Pendente"}
-                              </span>
                             </li>
                           ))}
                         </ul>
