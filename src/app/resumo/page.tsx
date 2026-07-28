@@ -19,8 +19,8 @@ import {
   type Servico,
 } from "@/lib/types";
 
-// Categorias que existem em ambas as abas e podem ser migradas
-const CATS_MIGRAVEIS: CategoriaDespesa[] = ["COMBUSTIVEL", "ALIMENTACAO"];
+// Categorias de prolabore que também existem em despesas
+const CATS_PROLABORE_EM_DESPESA: CategoriaDespesa[] = ["COMBUSTIVEL", "ALIMENTACAO"];
 import { formatCurrency, formatDateLabel, formatDateOnly, dayKey } from "@/lib/format";
 import { exportCsv, exportPdf } from "@/lib/export";
 
@@ -77,11 +77,8 @@ export default function ResumoPage() {
 
   const editValido = Number(editValor.replace(",", ".")) > 0 && editCategoria !== null;
 
-  // Despesas com categorias que também existem no Pró-labore
-  const candidatosMigracao = useMemo(
-    () => despesas.filter((d) => CATS_MIGRAVEIS.includes(d.categoria as CategoriaDespesa)),
-    [despesas],
-  );
+  // Todas as despesas — a tela de migração mostra todas para o usuário decidir
+  const candidatosMigracao = useMemo(() => despesas, [despesas]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -288,50 +285,53 @@ export default function ResumoPage() {
             <button type="button" onClick={() => setMigracaoAberta(false)} className="text-muted text-lg">✕</button>
             <div>
               <h2 className="font-extrabold uppercase tracking-wide">Migrar para Pró-labore</h2>
-              <p className="text-xs text-muted">{candidatosMigracao.length} despesas com categorias pessoais</p>
+              <p className="text-xs text-muted">Selecione o que mover ou excluir</p>
             </div>
           </header>
 
           <div className="flex-1 overflow-y-auto p-5">
-            {candidatosMigracao.length === 0 ? (
-              <p className="py-10 text-center text-sm text-muted">Nenhuma despesa para migrar.</p>
+            {despesas.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted">Nenhuma despesa registrada.</p>
             ) : (
               <ul className="space-y-3">
-                {candidatosMigracao.map((d) => (
-                  <li key={d.id} className="rounded-xl border border-border bg-surface px-4 py-3">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-ticket font-bold">{formatCurrency(d.valor)}</p>
+                {despesas.map((d) => {
+                  const podeMovar = CATS_PROLABORE_EM_DESPESA.includes(d.categoria as CategoriaDespesa);
+                  return (
+                    <li key={d.id} className="rounded-xl border border-border bg-surface px-4 py-3">
+                      <div className="mb-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-ticket font-bold">{formatCurrency(d.valor)}</p>
+                          <span className="rounded-full border border-border px-2 py-0.5 text-xs font-bold text-muted">
+                            {CATEGORIA_DESPESA_LABEL[d.categoria]}
+                          </span>
+                        </div>
                         <p className="mt-0.5 text-xs text-muted">
-                          {CATEGORIA_DESPESA_LABEL[d.categoria]} · {formatDateOnly(d.created_at.slice(0, 10))}
+                          {formatDateOnly(d.created_at.slice(0, 10))}
+                          {d.observacao ? ` · ${d.observacao}` : ""}
                         </p>
-                        {d.observacao && (
-                          <p className="mt-0.5 truncate text-xs text-muted">{d.observacao}</p>
-                        )}
                       </div>
-                      <span className="shrink-0 rounded-full bg-prolabore/20 px-2 py-0.5 text-xs font-bold text-prolabore">
-                        {CATEGORIA_PROLABORE_LABEL[d.categoria as CategoriaProlabore]}
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        disabled={migrandoId === d.id}
-                        onClick={() => moverParaProlabore(d)}
-                        className="flex-1 rounded-xl bg-prolabore py-2 text-xs font-extrabold uppercase tracking-wide text-black disabled:opacity-40"
-                      >
-                        {migrandoId === d.id ? "Movendo..." : "Mover para Pró-labore"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setParaExcluir(d)}
-                        className="rounded-xl border border-despesa/40 px-3 py-2 text-xs font-bold text-despesa"
-                      >
-                        Excluir
-                      </button>
-                    </div>
-                  </li>
-                ))}
+                      <div className="flex gap-2">
+                        {podeMovar && (
+                          <button
+                            type="button"
+                            disabled={migrandoId === d.id}
+                            onClick={() => moverParaProlabore(d)}
+                            className="flex-1 rounded-xl bg-prolabore py-2 text-xs font-extrabold uppercase tracking-wide text-black disabled:opacity-40"
+                          >
+                            {migrandoId === d.id ? "Movendo..." : "→ Pró-labore"}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setParaExcluir(d)}
+                          className={`rounded-xl border border-despesa/40 px-3 py-2 text-xs font-bold text-despesa ${!podeMovar ? "flex-1" : ""}`}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -478,6 +478,17 @@ export default function ResumoPage() {
                 </p>
               </div>
             </div>
+
+            {/* Botão migração — sempre visível quando há despesas */}
+            {despesas.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setMigracaoAberta(true)}
+                className="w-full rounded-xl border border-prolabore bg-prolabore/10 py-3 text-sm font-extrabold uppercase tracking-wide text-prolabore"
+              >
+                Migrar despesas para Pró-labore
+              </button>
+            )}
 
             {/* Detalhamento das receitas */}
             <div className="rounded-xl border border-border bg-surface px-4 py-3">
@@ -671,17 +682,6 @@ export default function ResumoPage() {
                   );
                 })}
               </div>
-            )}
-
-            {/* Migração */}
-            {candidatosMigracao.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setMigracaoAberta(true)}
-                className="w-full rounded-xl border border-prolabore/50 bg-prolabore/10 py-4 text-sm font-extrabold uppercase tracking-wide text-prolabore"
-              >
-                ⚠ {candidatosMigracao.length} despesa{candidatosMigracao.length > 1 ? "s" : ""} para migrar ao Pró-labore
-              </button>
             )}
 
             {/* Exportar */}
