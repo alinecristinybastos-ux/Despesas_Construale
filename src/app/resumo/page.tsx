@@ -215,7 +215,7 @@ export default function ResumoPage() {
     let recServicos = 0;
 
     for (const v of vendas) {
-      const dateRef = v.dataRecebimento ?? v.data;
+      const dateRef = v.dataRecebimento ?? v.data ?? v.timestamp;
       const noMes = periodo === "mes"
         ? dateInMonth(dateRef, anoSel, mesSel)
         : dateInRange(dateRef, inicioPeriodo, fimPeriodo);

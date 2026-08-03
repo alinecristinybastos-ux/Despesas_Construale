@@ -112,7 +112,7 @@ export default function FinanceiroPage() {
   }
 
   // --- Receitas ---
-  const vendasMes = vendas.filter((v) => inMonth(v.dataRecebimento ?? v.data, ano, mes));
+  const vendasMes = vendas.filter((v) => inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ano, mes));
   // valorPago = valor já recebido independente do status
   const receitaVendas = vendasMes.reduce((acc, v) => acc + (v.valorPago || 0), 0);
   // a receber = saldo restante das vendas não quitadas

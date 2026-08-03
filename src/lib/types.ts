@@ -145,9 +145,10 @@ export interface Venda {
   cliente: string;
   valor: number;
   valorPago: number;
-  statusPagamento: "a_receber" | "recebido";
-  data: string; // YYYY-MM-DD (sale date)
+  statusPagamento: string;
+  data?: string; // YYYY-MM-DD (sale date)
   dataRecebimento?: string; // YYYY-MM-DD (payment received date)
+  timestamp?: unknown; // Firestore Timestamp or string (older records)
   hora: string;
   obs: string;
 }
