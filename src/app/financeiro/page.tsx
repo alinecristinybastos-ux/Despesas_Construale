@@ -95,14 +95,24 @@ export default function FinanceiroPage() {
 
     const todasVendas = vendasSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Venda));
 
-    // DEBUG: test timestamp-based filtering for July 2026
+    // DEBUG: investigar historico[].quando como data de recebimento
     const ANO_DBG = 2026, MES_DBG = 6;
-    const t_ts  = todasVendas.filter((v) => inMonth(v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const t_dr  = todasVendas.filter((v) => inMonth(v.dataRecebimento, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const t_da  = todasVendas.filter((v) => inMonth(v.data, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const t_any = todasVendas.filter((v) => inMonth(v.timestamp, ANO_DBG, MES_DBG) || inMonth(v.dataRecebimento, ANO_DBG, MES_DBG) || inMonth(v.data, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const t_cur = todasVendas.filter((v) => inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    setDebugInfo({ total: todasVendas.length, timestamp: t_ts, dataRecebimento: t_dr, data: t_da, qualquer: t_any, atual: t_cur });
+    // historico: array com entradas { acao, quando } — quando pode ser Timestamp ou string
+    const hasHistJul = (v: Venda) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const hist = (v as any).historico;
+      if (!Array.isArray(hist)) return false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return hist.some((h: any) => h.quando && inMonth(h.quando, ANO_DBG, MES_DBG));
+    };
+    const t_hist = todasVendas.filter(hasHistJul).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const t_hist_n = todasVendas.filter(hasHistJul).length;
+    const t_dr   = todasVendas.filter((v) => inMonth(v.dataRecebimento, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const t_any  = todasVendas.filter((v) => inMonth(v.timestamp, ANO_DBG, MES_DBG) || inMonth(v.dataRecebimento, ANO_DBG, MES_DBG) || inMonth(v.data, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const t_cur  = todasVendas.filter((v) => inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    // historico OR dataRecebimento
+    const t_hist_or_dr = todasVendas.filter((v) => hasHistJul(v) || inMonth(v.dataRecebimento, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    setDebugInfo({ total: todasVendas.length, "historico[].quando": t_hist, "hist vendas(qtd)": t_hist_n, "dataRecebimento": t_dr, "qualquer campo": t_any, "atual": t_cur, "hist OR dataRec": t_hist_or_dr });
     // END DEBUG
 
     setVendas(todasVendas);
@@ -268,16 +278,10 @@ export default function FinanceiroPage() {
             {debugInfo && (
               <div className="rounded-xl border-2 border-yellow-400 bg-yellow-50 px-4 py-3 text-xs dark:bg-yellow-900/30">
                 <p className="mb-2 font-extrabold uppercase text-yellow-700 dark:text-yellow-300">Debug — Julho 2026 ({debugInfo.total} vendas)</p>
-                {[
-                  ["timestamp only", debugInfo.timestamp],
-                  ["dataRecebimento only", debugInfo.dataRecebimento],
-                  ["data only", debugInfo.data],
-                  ["qualquer campo", debugInfo.qualquer],
-                  ["atual (dr??da??ts)", debugInfo.atual],
-                ].map(([label, val]) => (
-                  <div key={label as string} className="flex justify-between border-b border-yellow-200 py-0.5 dark:border-yellow-700">
+                {Object.entries(debugInfo).filter(([k]) => k !== "total").map(([label, val]) => (
+                  <div key={label} className="flex justify-between border-b border-yellow-200 py-0.5 dark:border-yellow-700">
                     <span className="text-yellow-800 dark:text-yellow-200">{label}</span>
-                    <span className="font-bold text-yellow-900 dark:text-yellow-100">{formatCurrency(val as number)}</span>
+                    <span className="font-bold text-yellow-900 dark:text-yellow-100">{typeof val === "number" && label.includes("qtd") ? val : formatCurrency(val as number)}</span>
                   </div>
                 ))}
               </div>
