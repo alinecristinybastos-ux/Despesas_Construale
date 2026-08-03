@@ -93,6 +93,26 @@ export default function FinanceiroPage() {
     ]);
 
     const todasVendas = vendasSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Venda));
+
+    // DEBUG: test timestamp-based filtering for July 2026
+    const ANO_DBG = 2026, MES_DBG = 6; // month=6 = July (0-indexed)
+    const t_ts   = todasVendas.filter((v) => inMonth(v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const t_dr   = todasVendas.filter((v) => inMonth(v.dataRecebimento, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const t_da   = todasVendas.filter((v) => inMonth(v.data, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const t_any  = todasVendas.filter((v) => inMonth(v.timestamp, ANO_DBG, MES_DBG) || inMonth(v.dataRecebimento, ANO_DBG, MES_DBG) || inMonth(v.data, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const t_cur  = todasVendas.filter((v) => inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    console.log("=== DEBUG JULHO 2026 ===");
+    console.log("timestamp only:", t_ts);
+    console.log("dataRecebimento only:", t_dr);
+    console.log("data only:", t_da);
+    console.log("ANY (ts OR dr OR da):", t_any);
+    console.log("atual (dr??da??ts):", t_cur);
+    console.log("total vendas:", todasVendas.length);
+    // Log sample of vendas with valorPago > 0 not caught by current filter
+    const fora = todasVendas.filter((v) => (v.valorPago || 0) > 0 && !inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ANO_DBG, MES_DBG) && (inMonth(v.timestamp, ANO_DBG, MES_DBG) || inMonth(v.dataRecebimento, ANO_DBG, MES_DBG) || inMonth(v.data, ANO_DBG, MES_DBG)));
+    console.log("vendas com valorPago fora do filtro atual mas em julho por outro campo:", fora.length, fora.slice(0,5).map(v => ({num: v.numero, data: v.data, dr: v.dataRecebimento, ts: v.timestamp, vp: v.valorPago})));
+    // END DEBUG
+
     setVendas(todasVendas);
     setServicos(servicosSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Servico)));
     setDespesas((despesasRes.data as Despesa[]) ?? []);
