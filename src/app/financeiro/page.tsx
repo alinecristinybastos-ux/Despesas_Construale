@@ -95,34 +95,46 @@ export default function FinanceiroPage() {
 
     const todasVendas = vendasSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Venda));
 
-    // DEBUG: verificar total global e filtro por status
+    // DEBUG: testar datas em formato DD/MM/AAAA
     const ANO_DBG = 2026, MES_DBG = 6;
 
-    // Total valorPago de TODAS as vendas (sem filtro)
-    const t_total_vp = todasVendas.reduce((a, v) => a + (v.valorPago || 0), 0);
+    // Parser para DD/MM/AAAA
+    function parseBR(s: unknown): Date | null {
+      if (typeof s !== "string") return null;
+      const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (!m) return null;
+      const d = new Date(+m[3], +m[2] - 1, +m[1]);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    function inMonthBR(s: unknown, a: number, mes: number) {
+      const d = parseBR(s);
+      return d ? d.getFullYear() === a && d.getMonth() === mes : false;
+    }
 
-    // Total valorPago de vendas com statusPagamento = "pago"
-    const t_pago_vp = todasVendas.filter((v) => v.statusPagamento === "pago").reduce((a, v) => a + (v.valorPago || 0), 0);
-    const n_pago = todasVendas.filter((v) => v.statusPagamento === "pago").length;
+    // Quantas vendas têm dataRecebimento em formato DD/MM/AAAA em julho?
+    const dr_br_jul_vp = todasVendas.filter((v) => inMonthBR(v.dataRecebimento, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const dr_br_jul_n  = todasVendas.filter((v) => inMonthBR(v.dataRecebimento, ANO_DBG, MES_DBG)).length;
 
-    // Total valorPago de vendas "pago" SEM filtro de data — quantas têm dataRecebimento null/undefined?
-    const pago_sem_dr = todasVendas.filter((v) => v.statusPagamento === "pago" && !v.dataRecebimento).length;
-    const pago_com_dr_jul = todasVendas.filter((v) => v.statusPagamento === "pago" && inMonth(v.dataRecebimento, ANO_DBG, MES_DBG)).length;
+    // Quantas têm `data` em formato DD/MM/AAAA em julho?
+    const da_br_jul_vp = todasVendas.filter((v) => inMonthBR(v.data, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const da_br_jul_n  = todasVendas.filter((v) => inMonthBR(v.data, ANO_DBG, MES_DBG)).length;
 
-    // Status distintos encontrados
-    const statusList = [...new Set(todasVendas.map((v) => String(v.statusPagamento ?? "")))].join(", ");
+    // Combinado: dataRecebimento OU data em qualquer formato em julho
+    const t_combined = todasVendas.filter((v) =>
+      inMonth(v.dataRecebimento, ANO_DBG, MES_DBG) || inMonthBR(v.dataRecebimento, ANO_DBG, MES_DBG) ||
+      inMonth(v.data, ANO_DBG, MES_DBG)            || inMonthBR(v.data, ANO_DBG, MES_DBG) ||
+      inMonth(v.timestamp, ANO_DBG, MES_DBG)
+    ).reduce((a, v) => a + (v.valorPago || 0), 0);
 
-    // Melhor resultado atual (dr??data??ts)
+    // Resultado atual para comparação
     const t_cur = todasVendas.filter((v) => inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
 
     setDebugInfo({
-      "total vendas": todasVendas.length,
-      "valorPago TOTAL (todas)": t_total_vp,
-      "valorPago status=pago": t_pago_vp,
-      "qtd status=pago": n_pago as unknown as number,
-      "pago sem dataRec": pago_sem_dr as unknown as number,
-      "pago c/ dataRec em Jul": pago_com_dr_jul as unknown as number,
-      "status distintos": statusList as unknown as number,
+      "dataRec DD/MM/AA em jul (vp)": dr_br_jul_vp,
+      "dataRec DD/MM/AA em jul (n)": dr_br_jul_n as unknown as number,
+      "data DD/MM/AA em jul (vp)": da_br_jul_vp,
+      "data DD/MM/AA em jul (n)": da_br_jul_n as unknown as number,
+      "combinado todos formatos": t_combined,
       "atual (dr??da??ts)": t_cur,
     });
     // END DEBUG
@@ -293,7 +305,7 @@ export default function FinanceiroPage() {
                 {Object.entries(debugInfo).filter(([k]) => k !== "total").map(([label, val]) => (
                   <div key={label} className="flex justify-between border-b border-yellow-200 py-0.5 dark:border-yellow-700">
                     <span className="text-yellow-800 dark:text-yellow-200">{label}</span>
-                    <span className="font-bold text-yellow-900 dark:text-yellow-100 break-all text-right max-w-[60%]">{["qtd status=pago","pago sem dataRec","pago c/ dataRec em Jul","total vendas","status distintos"].includes(label) ? String(val) : formatCurrency(val as number)}</span>
+                    <span className="font-bold text-yellow-900 dark:text-yellow-100 break-all text-right max-w-[60%]">{label.endsWith("(n)") ? String(val) : formatCurrency(val as number)}</span>
                   </div>
                 ))}
               </div>
