@@ -95,29 +95,36 @@ export default function FinanceiroPage() {
 
     const todasVendas = vendasSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Venda));
 
-    // DEBUG: somar historico[].valor de entradas de julho
+    // DEBUG: verificar total global e filtro por status
     const ANO_DBG = 2026, MES_DBG = 6;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const getHist = (v: Venda): any[] => { const h = (v as any).historico; return Array.isArray(h) ? h : []; };
 
-    // Soma do campo "valor" das entradas de historico cujo "quando" cai em julho
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const t_hist_valor = todasVendas.reduce((acc, v) => acc + getHist(v).filter((h: any) => h.quando && inMonth(h.quando, ANO_DBG, MES_DBG)).reduce((s: number, h: any) => s + (Number(h.valor) || 0), 0), 0);
+    // Total valorPago de TODAS as vendas (sem filtro)
+    const t_total_vp = todasVendas.reduce((a, v) => a + (v.valorPago || 0), 0);
 
-    // Soma do campo "valor" das entradas de historico em julho — só onde acao contém "pag" ou "receb"
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const t_hist_pag_valor = todasVendas.reduce((acc, v) => acc + getHist(v).filter((h: any) => h.quando && inMonth(h.quando, ANO_DBG, MES_DBG) && typeof h.acao === "string" && /pag|receb/i.test(h.acao)).reduce((s: number, h: any) => s + (Number(h.valor) || 0), 0), 0);
+    // Total valorPago de vendas com statusPagamento = "pago"
+    const t_pago_vp = todasVendas.filter((v) => v.statusPagamento === "pago").reduce((a, v) => a + (v.valorPago || 0), 0);
+    const n_pago = todasVendas.filter((v) => v.statusPagamento === "pago").length;
 
-    // Ações únicas encontradas no historico de julho (para inspeção)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const acoesJul = [...new Set(todasVendas.flatMap((v) => getHist(v).filter((h: any) => h.quando && inMonth(h.quando, ANO_DBG, MES_DBG)).map((h: any) => String(h.acao ?? ""))))].slice(0, 8).join(", ");
+    // Total valorPago de vendas "pago" SEM filtro de data — quantas têm dataRecebimento null/undefined?
+    const pago_sem_dr = todasVendas.filter((v) => v.statusPagamento === "pago" && !v.dataRecebimento).length;
+    const pago_com_dr_jul = todasVendas.filter((v) => v.statusPagamento === "pago" && inMonth(v.dataRecebimento, ANO_DBG, MES_DBG)).length;
 
-    // valorPago usando historico (abordagem anterior)
-    const t_hist_vp = todasVendas.filter((v) => getHist(v).some((h) => h.quando && inMonth(h.quando, ANO_DBG, MES_DBG))).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const t_dr = todasVendas.filter((v) => inMonth(v.dataRecebimento, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    // Status distintos encontrados
+    const statusList = [...new Set(todasVendas.map((v) => String(v.statusPagamento ?? "")))].join(", ");
+
+    // Melhor resultado atual (dr??data??ts)
     const t_cur = todasVendas.filter((v) => inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
 
-    setDebugInfo({ total: todasVendas.length, "hist[].valor (julho)": t_hist_valor, "hist[].valor pag/receb": t_hist_pag_valor, "hist vp (anterior)": t_hist_vp, "dataRecebimento vp": t_dr, "atual vp": t_cur, "acoes": acoesJul as unknown as number });
+    setDebugInfo({
+      "total vendas": todasVendas.length,
+      "valorPago TOTAL (todas)": t_total_vp,
+      "valorPago status=pago": t_pago_vp,
+      "qtd status=pago": n_pago as unknown as number,
+      "pago sem dataRec": pago_sem_dr as unknown as number,
+      "pago c/ dataRec em Jul": pago_com_dr_jul as unknown as number,
+      "status distintos": statusList as unknown as number,
+      "atual (dr??da??ts)": t_cur,
+    });
     // END DEBUG
 
     setVendas(todasVendas);
@@ -286,7 +293,7 @@ export default function FinanceiroPage() {
                 {Object.entries(debugInfo).filter(([k]) => k !== "total").map(([label, val]) => (
                   <div key={label} className="flex justify-between border-b border-yellow-200 py-0.5 dark:border-yellow-700">
                     <span className="text-yellow-800 dark:text-yellow-200">{label}</span>
-                    <span className="font-bold text-yellow-900 dark:text-yellow-100 break-all text-right max-w-[60%]">{label === "acoes" ? String(val) : formatCurrency(val as number)}</span>
+                    <span className="font-bold text-yellow-900 dark:text-yellow-100 break-all text-right max-w-[60%]">{["qtd status=pago","pago sem dataRec","pago c/ dataRec em Jul","total vendas","status distintos"].includes(label) ? String(val) : formatCurrency(val as number)}</span>
                   </div>
                 ))}
               </div>
