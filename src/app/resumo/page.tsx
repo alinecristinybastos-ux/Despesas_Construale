@@ -77,6 +77,7 @@ export default function ResumoPage() {
   const [tipoRel, setTipoRel] = useState<TipoRel>("categoria");
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const [vendasManual, setVendasManual] = useState<number | null>(null);
 
   // estados de edição
   const [paraEditar, setParaEditar] = useState<Despesa | null>(null);
@@ -168,6 +169,11 @@ export default function ResumoPage() {
     showToast("Movido para Pró-labore.");
   }
 
+  useEffect(() => {
+    const saved = localStorage.getItem(`vr_manual_${anoSel}_${mesSel}`);
+    setVendasManual(saved !== null ? Number(saved) : null);
+  }, [anoSel, mesSel]);
+
   function navMes(delta: number) {
     let m = mesSel + delta;
     let a = anoSel;
@@ -220,9 +226,7 @@ export default function ResumoPage() {
         ? dateInMonth(dateRef, anoSel, mesSel)
         : dateInRange(dateRef, inicioPeriodo, fimPeriodo);
       if (!noMes) continue;
-      // valorPago = valor já recebido independente do status
       recVendas += v.valorPago || 0;
-      // a receber = saldo restante das vendas não quitadas
       const restante = (v.valor || 0) - (v.valorPago || 0);
       if (restante > 0) aReceber += restante;
     }
@@ -236,8 +240,11 @@ export default function ResumoPage() {
       }
     }
 
-    return { receitaVendas: recVendas, vendasAReceber: aReceber, receitaServicos: recServicos };
-  }, [vendas, servicos, periodo, anoSel, mesSel, inicioPeriodo, fimPeriodo]);
+    // Quando período é "mês" e o usuário inseriu valor manual, usa o manual
+    const recVendasFinal = (periodo === "mes" && vendasManual !== null) ? vendasManual : recVendas;
+
+    return { receitaVendas: recVendasFinal, vendasAReceber: aReceber, receitaServicos: recServicos };
+  }, [vendas, servicos, periodo, anoSel, mesSel, inicioPeriodo, fimPeriodo, vendasManual]);
 
   const totalReceitas = receitaVendas + receitaServicos;
   const totalDespesas = despesasPeriodo.reduce((acc, d) => acc + d.valor, 0);

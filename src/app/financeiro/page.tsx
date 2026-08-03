@@ -18,7 +18,6 @@ function mesLabel(ano: number, mes: number) {
 
 function toDate(value: unknown): Date | null {
   if (!value) return null;
-  // Firestore Timestamp: { seconds, nanoseconds }
   if (typeof value === "object" && value !== null && "seconds" in value) {
     return new Date((value as { seconds: number }).seconds * 1000);
   }
@@ -34,6 +33,14 @@ function inMonth(dateStr: unknown, ano: number, mes: number): boolean {
   const d = toDate(dateStr);
   if (!d) return false;
   return d.getFullYear() === ano && d.getMonth() === mes;
+}
+
+function lsKey(ano: number, mes: number) {
+  return `vr_manual_${ano}_${mes}`;
+}
+
+function parseBrNumber(s: string): number {
+  return parseFloat(s.replace(/\./g, "").replace(",", "."));
 }
 
 function Row({ label, value, bold, indent, accent }: {
@@ -76,70 +83,24 @@ export default function FinanceiroPage() {
   const [mes, setMes] = useState(hoje.getMonth());
   const [loading, setLoading] = useState(true);
 
-  const [vendas, setVendas] = useState<Venda[]>([]);
   const [servicos, setServicos] = useState<Servico[]>([]);
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [salarios, setSalarios] = useState<PagamentoFuncionario[]>([]);
   const [prolabores, setProlabores] = useState<Prolabore[]>([]);
-  const [debugInfo, setDebugInfo] = useState<Record<string, number | string> | null>(null);
+
+  const [vendasManual, setVendasManual] = useState<number | null>(null);
+  const [editando, setEditando] = useState(false);
+  const [inputValor, setInputValor] = useState("");
 
   async function carregar() {
     setLoading(true);
-    const [vendasSnap, servicosSnap, despesasRes, salariosRes, prolaboreRes] = await Promise.all([
-      getDocs(collection(db, "vendas")),
+    const [servicosSnap, despesasRes, salariosRes, prolaboreRes] = await Promise.all([
       getDocs(collection(db, "servicos")),
       supabase.from("despesas").select("*"),
       supabase.from("pagamentos_funcionario").select("*"),
       supabase.from("prolabore").select("*"),
     ]);
 
-    const todasVendas = vendasSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Venda));
-
-    // DEBUG: testar datas em formato DD/MM/AAAA
-    const ANO_DBG = 2026, MES_DBG = 6;
-
-    // Parser para DD/MM/AAAA
-    function parseBR(s: unknown): Date | null {
-      if (typeof s !== "string") return null;
-      const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-      if (!m) return null;
-      const d = new Date(+m[3], +m[2] - 1, +m[1]);
-      return isNaN(d.getTime()) ? null : d;
-    }
-    function inMonthBR(s: unknown, a: number, mes: number) {
-      const d = parseBR(s);
-      return d ? d.getFullYear() === a && d.getMonth() === mes : false;
-    }
-
-    // Quantas vendas têm dataRecebimento em formato DD/MM/AAAA em julho?
-    const dr_br_jul_vp = todasVendas.filter((v) => inMonthBR(v.dataRecebimento, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const dr_br_jul_n  = todasVendas.filter((v) => inMonthBR(v.dataRecebimento, ANO_DBG, MES_DBG)).length;
-
-    // Quantas têm `data` em formato DD/MM/AAAA em julho?
-    const da_br_jul_vp = todasVendas.filter((v) => inMonthBR(v.data, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const da_br_jul_n  = todasVendas.filter((v) => inMonthBR(v.data, ANO_DBG, MES_DBG)).length;
-
-    // Combinado: dataRecebimento OU data em qualquer formato em julho
-    const t_combined = todasVendas.filter((v) =>
-      inMonth(v.dataRecebimento, ANO_DBG, MES_DBG) || inMonthBR(v.dataRecebimento, ANO_DBG, MES_DBG) ||
-      inMonth(v.data, ANO_DBG, MES_DBG)            || inMonthBR(v.data, ANO_DBG, MES_DBG) ||
-      inMonth(v.timestamp, ANO_DBG, MES_DBG)
-    ).reduce((a, v) => a + (v.valorPago || 0), 0);
-
-    // Resultado atual para comparação
-    const t_cur = todasVendas.filter((v) => inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-
-    setDebugInfo({
-      "dataRec DD/MM/AA em jul (vp)": dr_br_jul_vp,
-      "dataRec DD/MM/AA em jul (n)": dr_br_jul_n as unknown as number,
-      "data DD/MM/AA em jul (vp)": da_br_jul_vp,
-      "data DD/MM/AA em jul (n)": da_br_jul_n as unknown as number,
-      "combinado todos formatos": t_combined,
-      "atual (dr??da??ts)": t_cur,
-    });
-    // END DEBUG
-
-    setVendas(todasVendas);
     setServicos(servicosSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Servico)));
     setDespesas((despesasRes.data as Despesa[]) ?? []);
     setSalarios((salariosRes.data as PagamentoFuncionario[]) ?? []);
@@ -148,6 +109,13 @@ export default function FinanceiroPage() {
   }
 
   useEffect(() => { carregar(); }, []);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(lsKey(ano, mes));
+    setVendasManual(saved !== null ? Number(saved) : null);
+    setEditando(false);
+    setInputValor("");
+  }, [ano, mes]);
 
   function navMes(delta: number) {
     let m = mes + delta;
@@ -158,15 +126,28 @@ export default function FinanceiroPage() {
     setAno(a);
   }
 
+  function abrirEdicao() {
+    setInputValor(vendasManual !== null ? String(vendasManual).replace(".", ",") : "");
+    setEditando(true);
+  }
+
+  function salvar() {
+    const val = parseBrNumber(inputValor);
+    if (!isNaN(val) && val >= 0) {
+      localStorage.setItem(lsKey(ano, mes), String(val));
+      setVendasManual(val);
+    }
+    setEditando(false);
+  }
+
+  function limpar() {
+    localStorage.removeItem(lsKey(ano, mes));
+    setVendasManual(null);
+    setEditando(false);
+  }
+
   // --- Receitas ---
-  const vendasMes = vendas.filter((v) => inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ano, mes));
-  // valorPago = valor já recebido independente do status
-  const receitaVendas = vendasMes.reduce((acc, v) => acc + (v.valorPago || 0), 0);
-  // a receber = saldo restante das vendas não quitadas
-  const vendasAReceber = vendasMes.reduce((acc, v) => {
-    const restante = (v.valor || 0) - (v.valorPago || 0);
-    return acc + (restante > 0 ? restante : 0);
-  }, 0);
+  const receitaVendas = vendasManual ?? 0;
 
   const receitaServicos = servicos.reduce((acc, s) => {
     const pagsMes = (s.pagamentos ?? []).filter((p) => inMonth(p.data, ano, mes));
@@ -268,6 +249,64 @@ export default function FinanceiroPage() {
           </button>
         </div>
 
+        {/* Vendas Recebidas — entrada manual */}
+        <div className="rounded-xl border border-border bg-surface px-4 py-3">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <p className="text-xs font-extrabold uppercase tracking-wide text-muted">Vendas Recebidas</p>
+            {!editando && (
+              <button
+                type="button"
+                onClick={abrirEdicao}
+                className="rounded-lg border border-border px-3 py-1 text-xs font-bold text-muted"
+              >
+                Editar
+              </button>
+            )}
+          </div>
+
+          {editando ? (
+            <div className="mt-2 space-y-2">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={inputValor}
+                onChange={(e) => setInputValor(e.target.value)}
+                placeholder="Ex: 133870,00"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm font-bold text-foreground outline-none focus:border-success"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") salvar(); if (e.key === "Escape") setEditando(false); }}
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={salvar}
+                  className="flex-1 rounded-xl bg-success py-2 text-xs font-extrabold uppercase tracking-wide text-white"
+                >
+                  Salvar
+                </button>
+                <button
+                  type="button"
+                  onClick={limpar}
+                  className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-muted"
+                >
+                  Limpar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditando(false)}
+                  className="rounded-xl border border-border px-4 py-2 text-xs font-bold text-muted"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className={`font-ticket text-lg font-bold ${vendasManual !== null ? "text-success" : "text-muted"}`}>
+              {vendasManual !== null ? formatCurrency(vendasManual) : "Não informado — clique em Editar"}
+            </p>
+          )}
+        </div>
+
         {loading ? (
           <p className="py-10 text-center text-sm text-muted">Carregando dados...</p>
         ) : (
@@ -298,19 +337,6 @@ export default function FinanceiroPage() {
               </div>
             </div>
 
-            {/* DEBUG PAINEL — remover depois */}
-            {debugInfo && (
-              <div className="rounded-xl border-2 border-yellow-400 bg-yellow-50 px-4 py-3 text-xs dark:bg-yellow-900/30">
-                <p className="mb-2 font-extrabold uppercase text-yellow-700 dark:text-yellow-300">Debug — Julho 2026 ({debugInfo.total} vendas)</p>
-                {Object.entries(debugInfo).filter(([k]) => k !== "total").map(([label, val]) => (
-                  <div key={label} className="flex justify-between border-b border-yellow-200 py-0.5 dark:border-yellow-700">
-                    <span className="text-yellow-800 dark:text-yellow-200">{label}</span>
-                    <span className="font-bold text-yellow-900 dark:text-yellow-100 break-all text-right max-w-[60%]">{label.endsWith("(n)") ? String(val) : formatCurrency(val as number)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* Fluxo de Caixa */}
             <div className="rounded-xl border border-border bg-surface px-4 py-4">
               <h2 className="mb-3 text-xs font-extrabold uppercase tracking-wide text-muted">
@@ -337,12 +363,6 @@ export default function FinanceiroPage() {
                   accent="resultado"
                 />
               </div>
-
-              {vendasAReceber > 0 && (
-                <p className="mt-2 text-xs text-muted">
-                  ⚠ {formatCurrency(vendasAReceber)} em vendas ainda a receber
-                </p>
-              )}
             </div>
 
             {/* DRE */}
