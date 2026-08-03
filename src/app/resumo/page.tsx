@@ -75,7 +75,6 @@ export default function ResumoPage() {
   const [anoSel, setAnoSel] = useState(hoje.getFullYear());
   const [mesSel, setMesSel] = useState(hoje.getMonth());
   const [tipoRel, setTipoRel] = useState<TipoRel>("categoria");
-  const [catExpandida, setCatExpandida] = useState<CategoriaDespesa | null>(null);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -618,80 +617,64 @@ export default function ResumoPage() {
               </div>
             ) : (
               /* ── Por Categoria ── */
-              <div className="space-y-2">
+              <div className="space-y-6">
                 {porCategoria.map(({ cat, label, itens, total }) => {
                   const pct = totalDespesas > 0 ? (total / totalDespesas) * 100 : 0;
-                  const aberta = catExpandida === cat;
                   return (
-                    <div
-                      key={cat}
-                      className="overflow-hidden rounded-xl border border-border bg-surface"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setCatExpandida(aberta ? null : cat)}
-                        className="flex w-full items-center justify-between px-4 py-3 text-left"
-                      >
+                    <div key={cat}>
+                      {/* Cabeçalho da categoria */}
+                      <div className="mb-2 flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="font-bold">{label}</p>
+                          <h2 className="font-extrabold uppercase tracking-wide text-foreground">
+                            {label}
+                          </h2>
                           <p className="text-xs text-muted">
-                            {itens.length} {itens.length === 1 ? "registro" : "registros"} ·{" "}
-                            {pct.toFixed(1)}%
+                            {itens.length} {itens.length === 1 ? "registro" : "registros"} · {pct.toFixed(1)}%
                           </p>
                         </div>
-                        <div className="flex shrink-0 items-center gap-3">
-                          <span className="font-ticket font-bold text-despesa">
-                            {formatCurrency(total)}
-                          </span>
-                          <span className="text-sm text-muted">{aberta ? "▲" : "▼"}</span>
-                        </div>
-                      </button>
-
-                      <div className="mx-4 mb-3 h-1 rounded-full bg-surface-2">
-                        <div
-                          className="h-1 rounded-full bg-despesa"
-                          style={{ width: `${pct}%` }}
-                        />
+                        <span className="font-ticket font-bold text-despesa shrink-0">
+                          {formatCurrency(total)}
+                        </span>
                       </div>
-
-                      {aberta && (
-                        <ul className="space-y-2 border-t border-border/40 px-4 py-3">
-                          {itens.map((d) => (
-                            <li
-                              key={d.id}
-                              className="rounded-xl border border-border bg-surface-2 px-3 py-2"
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <p className="font-ticket text-sm font-bold">
-                                    {formatCurrency(d.valor)}
-                                  </p>
-                                  <p className="truncate text-xs text-muted">
-                                    {formatDateOnly(d.created_at.slice(0, 10))}
-                                    {d.observacao ? ` · ${d.observacao}` : ""}
-                                  </p>
-                                </div>
-                                <div className="flex shrink-0 items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => abrirEditar(d)}
-                                    className="rounded-lg border border-border px-2 py-1 text-xs font-bold text-muted"
-                                  >
-                                    Editar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setParaExcluir(d)}
-                                    className="rounded-lg border border-despesa/40 px-2 py-1 text-xs font-bold text-despesa"
-                                  >
-                                    Excluir
-                                  </button>
-                                </div>
+                      {/* Barra de progresso */}
+                      <div className="mb-2 h-1 rounded-full bg-surface-2">
+                        <div className="h-1 rounded-full bg-despesa" style={{ width: `${pct}%` }} />
+                      </div>
+                      {/* Itens da categoria */}
+                      <ul className="space-y-2">
+                        {itens.map((d) => (
+                          <li
+                            key={d.id}
+                            className="rounded-xl border border-border bg-surface px-4 py-3"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="font-ticket font-bold">{formatCurrency(d.valor)}</p>
+                                <p className="truncate text-xs text-muted">
+                                  {formatDateOnly(d.created_at.slice(0, 10))}
+                                  {d.observacao ? ` · ${d.observacao}` : ""}
+                                </p>
                               </div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                              <div className="flex shrink-0 items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => abrirEditar(d)}
+                                  className="rounded-lg border border-border px-2 py-1 text-xs font-bold text-muted"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setParaExcluir(d)}
+                                  className="rounded-lg border border-despesa/40 px-2 py-1 text-xs font-bold text-despesa"
+                                >
+                                  Excluir
+                                </button>
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   );
                 })}
