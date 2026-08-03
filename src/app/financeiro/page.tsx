@@ -81,6 +81,7 @@ export default function FinanceiroPage() {
   const [despesas, setDespesas] = useState<Despesa[]>([]);
   const [salarios, setSalarios] = useState<PagamentoFuncionario[]>([]);
   const [prolabores, setProlabores] = useState<Prolabore[]>([]);
+  const [debugInfo, setDebugInfo] = useState<Record<string, number | string> | null>(null);
 
   async function carregar() {
     setLoading(true);
@@ -95,22 +96,13 @@ export default function FinanceiroPage() {
     const todasVendas = vendasSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Venda));
 
     // DEBUG: test timestamp-based filtering for July 2026
-    const ANO_DBG = 2026, MES_DBG = 6; // month=6 = July (0-indexed)
-    const t_ts   = todasVendas.filter((v) => inMonth(v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const t_dr   = todasVendas.filter((v) => inMonth(v.dataRecebimento, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const t_da   = todasVendas.filter((v) => inMonth(v.data, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const t_any  = todasVendas.filter((v) => inMonth(v.timestamp, ANO_DBG, MES_DBG) || inMonth(v.dataRecebimento, ANO_DBG, MES_DBG) || inMonth(v.data, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const t_cur  = todasVendas.filter((v) => inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    console.log("=== DEBUG JULHO 2026 ===");
-    console.log("timestamp only:", t_ts);
-    console.log("dataRecebimento only:", t_dr);
-    console.log("data only:", t_da);
-    console.log("ANY (ts OR dr OR da):", t_any);
-    console.log("atual (dr??da??ts):", t_cur);
-    console.log("total vendas:", todasVendas.length);
-    // Log sample of vendas with valorPago > 0 not caught by current filter
-    const fora = todasVendas.filter((v) => (v.valorPago || 0) > 0 && !inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ANO_DBG, MES_DBG) && (inMonth(v.timestamp, ANO_DBG, MES_DBG) || inMonth(v.dataRecebimento, ANO_DBG, MES_DBG) || inMonth(v.data, ANO_DBG, MES_DBG)));
-    console.log("vendas com valorPago fora do filtro atual mas em julho por outro campo:", fora.length, fora.slice(0,5).map(v => ({num: v.numero, data: v.data, dr: v.dataRecebimento, ts: v.timestamp, vp: v.valorPago})));
+    const ANO_DBG = 2026, MES_DBG = 6;
+    const t_ts  = todasVendas.filter((v) => inMonth(v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const t_dr  = todasVendas.filter((v) => inMonth(v.dataRecebimento, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const t_da  = todasVendas.filter((v) => inMonth(v.data, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const t_any = todasVendas.filter((v) => inMonth(v.timestamp, ANO_DBG, MES_DBG) || inMonth(v.dataRecebimento, ANO_DBG, MES_DBG) || inMonth(v.data, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const t_cur = todasVendas.filter((v) => inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    setDebugInfo({ total: todasVendas.length, timestamp: t_ts, dataRecebimento: t_dr, data: t_da, qualquer: t_any, atual: t_cur });
     // END DEBUG
 
     setVendas(todasVendas);
@@ -271,6 +263,25 @@ export default function FinanceiroPage() {
                 </p>
               </div>
             </div>
+
+            {/* DEBUG PAINEL — remover depois */}
+            {debugInfo && (
+              <div className="rounded-xl border-2 border-yellow-400 bg-yellow-50 px-4 py-3 text-xs dark:bg-yellow-900/30">
+                <p className="mb-2 font-extrabold uppercase text-yellow-700 dark:text-yellow-300">Debug — Julho 2026 ({debugInfo.total} vendas)</p>
+                {[
+                  ["timestamp only", debugInfo.timestamp],
+                  ["dataRecebimento only", debugInfo.dataRecebimento],
+                  ["data only", debugInfo.data],
+                  ["qualquer campo", debugInfo.qualquer],
+                  ["atual (dr??da??ts)", debugInfo.atual],
+                ].map(([label, val]) => (
+                  <div key={label as string} className="flex justify-between border-b border-yellow-200 py-0.5 dark:border-yellow-700">
+                    <span className="text-yellow-800 dark:text-yellow-200">{label}</span>
+                    <span className="font-bold text-yellow-900 dark:text-yellow-100">{formatCurrency(val as number)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Fluxo de Caixa */}
             <div className="rounded-xl border border-border bg-surface px-4 py-4">
