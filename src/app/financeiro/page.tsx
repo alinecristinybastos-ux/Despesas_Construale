@@ -92,7 +92,14 @@ export default function FinanceiroPage() {
       supabase.from("prolabore").select("*"),
     ]);
 
-    setVendas(vendasSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Venda)));
+    const todasVendas = vendasSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Venda));
+    // DEBUG — remover depois
+    console.log("=== DEBUG VENDAS ===");
+    console.log("Total vendas:", todasVendas.length);
+    todasVendas.forEach((v) => {
+      console.log(JSON.stringify({ id: v.id, num: (v as any).numero, data: (v as any).data, dataRec: (v as any).dataRecebimento, ts: (v as any).timestamp, valorPago: v.valorPago, status: v.statusPagamento }));
+    });
+    setVendas(todasVendas);
     setServicos(servicosSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Servico)));
     setDespesas((despesasRes.data as Despesa[]) ?? []);
     setSalarios((salariosRes.data as PagamentoFuncionario[]) ?? []);
