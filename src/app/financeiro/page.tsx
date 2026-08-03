@@ -94,11 +94,14 @@ export default function FinanceiroPage() {
 
     const todasVendas = vendasSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Venda));
     // DEBUG — remover depois
-    console.log("=== DEBUG VENDAS ===");
-    console.log("Total vendas:", todasVendas.length);
-    todasVendas.forEach((v) => {
-      console.log(JSON.stringify({ id: v.id, num: (v as any).numero, data: (v as any).data, dataRec: (v as any).dataRecebimento, ts: (v as any).timestamp, valorPago: v.valorPago, status: v.statusPagamento }));
-    });
+    const dbg_ano = 2026, dbg_mes = 6; // julho
+    const t1 = todasVendas.filter((v) => inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, dbg_ano, dbg_mes)).reduce((s, v) => s + (v.valorPago || 0), 0);
+    const t2 = todasVendas.filter((v) => inMonth((v as any).data ?? v.timestamp, dbg_ano, dbg_mes)).reduce((s, v) => s + (v.valorPago || 0), 0);
+    const t3 = todasVendas.filter((v) => inMonth((v as any).data ?? v.timestamp, dbg_ano, dbg_mes) || inMonth(v.dataRecebimento, dbg_ano, dbg_mes)).reduce((s, v) => s + (v.valorPago || 0), 0);
+    console.log("=== TOTAIS JULHO ===");
+    console.log("dataRec ?? data (atual):", t1);
+    console.log("data only:", t2);
+    console.log("data OR dataRec:", t3);
     setVendas(todasVendas);
     setServicos(servicosSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Servico)));
     setDespesas((despesasRes.data as Despesa[]) ?? []);
