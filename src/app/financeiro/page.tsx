@@ -95,24 +95,29 @@ export default function FinanceiroPage() {
 
     const todasVendas = vendasSnap.docs.map((d) => ({ id: d.id, ...d.data() } as Venda));
 
-    // DEBUG: investigar historico[].quando como data de recebimento
+    // DEBUG: somar historico[].valor de entradas de julho
     const ANO_DBG = 2026, MES_DBG = 6;
-    // historico: array com entradas { acao, quando } — quando pode ser Timestamp ou string
-    const hasHistJul = (v: Venda) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const hist = (v as any).historico;
-      if (!Array.isArray(hist)) return false;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return hist.some((h: any) => h.quando && inMonth(h.quando, ANO_DBG, MES_DBG));
-    };
-    const t_hist = todasVendas.filter(hasHistJul).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const t_hist_n = todasVendas.filter(hasHistJul).length;
-    const t_dr   = todasVendas.filter((v) => inMonth(v.dataRecebimento, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const t_any  = todasVendas.filter((v) => inMonth(v.timestamp, ANO_DBG, MES_DBG) || inMonth(v.dataRecebimento, ANO_DBG, MES_DBG) || inMonth(v.data, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    const t_cur  = todasVendas.filter((v) => inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    // historico OR dataRecebimento
-    const t_hist_or_dr = todasVendas.filter((v) => hasHistJul(v) || inMonth(v.dataRecebimento, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
-    setDebugInfo({ total: todasVendas.length, "historico[].quando": t_hist, "hist vendas(qtd)": t_hist_n, "dataRecebimento": t_dr, "qualquer campo": t_any, "atual": t_cur, "hist OR dataRec": t_hist_or_dr });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const getHist = (v: Venda): any[] => { const h = (v as any).historico; return Array.isArray(h) ? h : []; };
+
+    // Soma do campo "valor" das entradas de historico cujo "quando" cai em julho
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const t_hist_valor = todasVendas.reduce((acc, v) => acc + getHist(v).filter((h: any) => h.quando && inMonth(h.quando, ANO_DBG, MES_DBG)).reduce((s: number, h: any) => s + (Number(h.valor) || 0), 0), 0);
+
+    // Soma do campo "valor" das entradas de historico em julho — só onde acao contém "pag" ou "receb"
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const t_hist_pag_valor = todasVendas.reduce((acc, v) => acc + getHist(v).filter((h: any) => h.quando && inMonth(h.quando, ANO_DBG, MES_DBG) && typeof h.acao === "string" && /pag|receb/i.test(h.acao)).reduce((s: number, h: any) => s + (Number(h.valor) || 0), 0), 0);
+
+    // Ações únicas encontradas no historico de julho (para inspeção)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const acoesJul = [...new Set(todasVendas.flatMap((v) => getHist(v).filter((h: any) => h.quando && inMonth(h.quando, ANO_DBG, MES_DBG)).map((h: any) => String(h.acao ?? ""))))].slice(0, 8).join(", ");
+
+    // valorPago usando historico (abordagem anterior)
+    const t_hist_vp = todasVendas.filter((v) => getHist(v).some((h) => h.quando && inMonth(h.quando, ANO_DBG, MES_DBG))).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const t_dr = todasVendas.filter((v) => inMonth(v.dataRecebimento, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+    const t_cur = todasVendas.filter((v) => inMonth(v.dataRecebimento ?? v.data ?? v.timestamp, ANO_DBG, MES_DBG)).reduce((a, v) => a + (v.valorPago || 0), 0);
+
+    setDebugInfo({ total: todasVendas.length, "hist[].valor (julho)": t_hist_valor, "hist[].valor pag/receb": t_hist_pag_valor, "hist vp (anterior)": t_hist_vp, "dataRecebimento vp": t_dr, "atual vp": t_cur, "acoes": acoesJul as unknown as number });
     // END DEBUG
 
     setVendas(todasVendas);
@@ -281,7 +286,7 @@ export default function FinanceiroPage() {
                 {Object.entries(debugInfo).filter(([k]) => k !== "total").map(([label, val]) => (
                   <div key={label} className="flex justify-between border-b border-yellow-200 py-0.5 dark:border-yellow-700">
                     <span className="text-yellow-800 dark:text-yellow-200">{label}</span>
-                    <span className="font-bold text-yellow-900 dark:text-yellow-100">{typeof val === "number" && label.includes("qtd") ? val : formatCurrency(val as number)}</span>
+                    <span className="font-bold text-yellow-900 dark:text-yellow-100 break-all text-right max-w-[60%]">{label === "acoes" ? String(val) : formatCurrency(val as number)}</span>
                   </div>
                 ))}
               </div>
