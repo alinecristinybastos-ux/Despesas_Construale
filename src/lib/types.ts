@@ -146,7 +146,8 @@ export interface Venda {
   valor: number;
   valorPago: number;
   statusPagamento: "a_receber" | "recebido";
-  data: string; // YYYY-MM-DD
+  data: string; // YYYY-MM-DD (sale date)
+  dataRecebimento?: string; // YYYY-MM-DD (payment received date)
   hora: string;
   obs: string;
 }

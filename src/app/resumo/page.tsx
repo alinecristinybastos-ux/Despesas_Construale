@@ -215,9 +215,10 @@ export default function ResumoPage() {
     let recServicos = 0;
 
     for (const v of vendas) {
+      const dateRef = v.dataRecebimento ?? v.data;
       const noMes = periodo === "mes"
-        ? dateInMonth(v.data, anoSel, mesSel)
-        : dateInRange(v.data, inicioPeriodo, fimPeriodo);
+        ? dateInMonth(dateRef, anoSel, mesSel)
+        : dateInRange(dateRef, inicioPeriodo, fimPeriodo);
       if (!noMes) continue;
       // valorPago = valor já recebido independente do status
       recVendas += v.valorPago || 0;
