@@ -39,16 +39,30 @@ function mesLabel(ano: number, mes: number) {
     .replace(/^\w/, (c) => c.toUpperCase());
 }
 
-function dateInRange(dateStr: string, inicio: Date, fim?: Date): boolean {
-  if (!dateStr) return false;
-  const d = new Date(dateStr.length === 10 ? dateStr + "T12:00:00" : dateStr);
+function toDate(value: unknown): Date | null {
+  if (!value) return null;
+  // Firestore Timestamp: { seconds, nanoseconds }
+  if (typeof value === "object" && value !== null && "seconds" in value) {
+    return new Date((value as { seconds: number }).seconds * 1000);
+  }
+  if (typeof value === "string") {
+    const d = new Date(value.length === 10 ? value + "T12:00:00" : value);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (value instanceof Date) return value;
+  return null;
+}
+
+function dateInRange(dateStr: unknown, inicio: Date, fim?: Date): boolean {
+  const d = toDate(dateStr);
+  if (!d) return false;
   if (fim) return d >= inicio && d <= fim;
   return d >= inicio;
 }
 
-function dateInMonth(dateStr: string, ano: number, mes: number): boolean {
-  if (!dateStr) return false;
-  const d = new Date(dateStr.length === 10 ? dateStr + "T12:00:00" : dateStr);
+function dateInMonth(dateStr: unknown, ano: number, mes: number): boolean {
+  const d = toDate(dateStr);
+  if (!d) return false;
   return d.getFullYear() === ano && d.getMonth() === mes;
 }
 
