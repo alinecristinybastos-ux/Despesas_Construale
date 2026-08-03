@@ -25,7 +25,7 @@ import { formatCurrency, formatDateLabel, formatDateOnly, dayKey } from "@/lib/f
 import { exportCsv, exportPdf } from "@/lib/export";
 
 type Periodo = "hoje" | "semana" | "mes";
-type TipoRel = "data" | "categoria";
+type TipoRel = "data" | "categoria" | "especifico";
 
 const PERIODOS: { key: Periodo; label: string }[] = [
   { key: "hoje", label: "Hoje" },
@@ -78,6 +78,8 @@ export default function ResumoPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
   const [vendasManual, setVendasManual] = useState<number | null>(null);
+  const [expandedCats, setExpandedCats] = useState<Set<string>>(new Set());
+  const [catFiltro, setCatFiltro] = useState<CategoriaDespesa | null>(null);
 
   // estados de edição
   const [paraEditar, setParaEditar] = useState<Despesa | null>(null);
@@ -173,6 +175,14 @@ export default function ResumoPage() {
     const saved = localStorage.getItem(`vr_manual_${anoSel}_${mesSel}`);
     setVendasManual(saved !== null ? Number(saved) : null);
   }, [anoSel, mesSel]);
+
+  function toggleCat(cat: string) {
+    setExpandedCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat); else next.add(cat);
+      return next;
+    });
+  }
 
   function navMes(delta: number) {
     let m = mesSel + delta;
@@ -546,18 +556,17 @@ export default function ResumoPage() {
               )}
             </div>
 
-            {/* Toggle Por Data / Por Categoria */}
-            <div className="flex gap-2">
-              {(
-                [
-                  ["data", "Por Data"],
-                  ["categoria", "Por Categoria"],
-                ] as const
-              ).map(([k, l]) => (
+            {/* Tabs de relatório */}
+            <div className="flex gap-2 flex-wrap">
+              {([
+                ["categoria", "Por Categoria"],
+                ["data", "Por Data"],
+                ["especifico", "Categoria Específica"],
+              ] as const).map(([k, l]) => (
                 <button
                   key={k}
                   type="button"
-                  onClick={() => setTipoRel(k)}
+                  onClick={() => { setTipoRel(k); if (k !== "especifico") setCatFiltro(null); }}
                   className={`rounded-full border px-4 py-2 text-sm font-bold uppercase tracking-wide ${
                     tipoRel === k
                       ? "border-despesa bg-despesa/10 text-despesa"
@@ -569,52 +578,94 @@ export default function ResumoPage() {
               ))}
             </div>
 
+            {/* Seletor de categoria específica */}
+            {tipoRel === "especifico" && (
+              <div className="flex flex-wrap gap-2">
+                {porCategoria.map(({ cat, label }) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCatFiltro(cat)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-bold ${
+                      catFiltro === cat
+                        ? "border-despesa bg-despesa text-black"
+                        : "border-border bg-surface text-muted"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {despesasPeriodo.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted">
-                Sem despesas no período.
-              </p>
+              <p className="py-4 text-center text-sm text-muted">Sem despesas no período.</p>
+            ) : tipoRel === "especifico" ? (
+              /* ── Categoria Específica ── */
+              !catFiltro ? (
+                <p className="py-4 text-center text-sm text-muted">Selecione uma categoria acima.</p>
+              ) : (() => {
+                const itensFiltro = despesasPeriodo.filter((d) => d.categoria === catFiltro);
+                const totalFiltro = itensFiltro.reduce((a, d) => a + d.valor, 0);
+                const labelFiltro = CATEGORIA_DESPESA_LABEL[catFiltro];
+                return (
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-xs font-extrabold uppercase tracking-wide text-muted">{labelFiltro}</p>
+                      <span className="font-ticket font-bold text-despesa">{formatCurrency(totalFiltro)}</span>
+                    </div>
+                    <ul className="space-y-2">
+                      {itensFiltro.map((d) => (
+                        <li key={d.id} className="rounded-xl border border-border bg-surface px-4 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-ticket font-bold">{formatCurrency(d.valor)}</p>
+                              <p className="truncate text-xs text-muted">
+                                {formatDateOnly(d.created_at.slice(0, 10))}
+                                {d.observacao ? ` · ${d.observacao}` : ""}
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <button type="button" onClick={() => abrirEditar(d)} className="rounded-lg border border-border px-2 py-1 text-xs font-bold text-muted">Editar</button>
+                              <button type="button" onClick={() => setParaExcluir(d)} className="rounded-lg border border-despesa/40 px-2 py-1 text-xs font-bold text-despesa">Excluir</button>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-4 space-y-3">
+                      <button type="button" onClick={() => exportCsv(itensFiltro)} className="w-full rounded-xl border border-border bg-surface-2 py-4 text-sm font-extrabold uppercase tracking-wide text-foreground">
+                        Exportar CSV — {labelFiltro}
+                      </button>
+                      <button type="button" onClick={() => exportPdf(`${periodoLabel} · ${labelFiltro}`, itensFiltro, [{ categoria: labelFiltro, total: totalFiltro }])} className="w-full rounded-xl border border-border bg-surface-2 py-4 text-sm font-extrabold uppercase tracking-wide text-foreground">
+                        Relatório PDF — {labelFiltro}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()
             ) : tipoRel === "data" ? (
               /* ── Por Data ── */
               <div className="space-y-5">
                 {porData.map(({ key, data, itens, total }) => (
                   <div key={key}>
                     <div className="mb-2 flex items-center justify-between">
-                      <h2 className="text-xs font-bold uppercase tracking-wide text-muted">
-                        {formatDateLabel(data)}
-                      </h2>
-                      <span className="font-ticket text-sm font-bold text-despesa">
-                        {formatCurrency(total)}
-                      </span>
+                      <h2 className="text-xs font-bold uppercase tracking-wide text-muted">{formatDateLabel(data)}</h2>
+                      <span className="font-ticket text-sm font-bold text-despesa">{formatCurrency(total)}</span>
                     </div>
                     <ul className="space-y-2">
                       {itens.map((d) => (
-                        <li
-                          key={d.id}
-                          className="rounded-xl border border-border bg-surface px-4 py-3"
-                        >
+                        <li key={d.id} className="rounded-xl border border-border bg-surface px-4 py-3">
                           <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0">
                               <p className="font-ticket font-bold">{formatCurrency(d.valor)}</p>
                               <p className="mt-0.5 truncate text-sm text-muted">
-                                {CATEGORIA_DESPESA_LABEL[d.categoria]}
-                                {d.observacao ? ` · ${d.observacao}` : ""}
+                                {CATEGORIA_DESPESA_LABEL[d.categoria]}{d.observacao ? ` · ${d.observacao}` : ""}
                               </p>
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => abrirEditar(d)}
-                                className="rounded-lg border border-border px-2 py-1 text-xs font-bold text-muted"
-                              >
-                                Editar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setParaExcluir(d)}
-                                className="rounded-lg border border-despesa/40 px-2 py-1 text-xs font-bold text-despesa"
-                              >
-                                Excluir
-                              </button>
+                              <button type="button" onClick={() => abrirEditar(d)} className="rounded-lg border border-border px-2 py-1 text-xs font-bold text-muted">Editar</button>
+                              <button type="button" onClick={() => setParaExcluir(d)} className="rounded-lg border border-despesa/40 px-2 py-1 text-xs font-bold text-despesa">Excluir</button>
                             </div>
                           </div>
                         </li>
@@ -622,90 +673,68 @@ export default function ResumoPage() {
                     </ul>
                   </div>
                 ))}
+                <div className="space-y-3 pt-2">
+                  <button type="button" onClick={() => exportCsv(despesasPeriodo)} className="w-full rounded-xl border border-border bg-surface-2 py-4 text-sm font-extrabold uppercase tracking-wide text-foreground">Exportar CSV</button>
+                  <button type="button" onClick={() => exportPdf(periodoLabel, despesasPeriodo, totalPorCategoria)} className="w-full rounded-xl border border-border bg-surface-2 py-4 text-sm font-extrabold uppercase tracking-wide text-foreground">Relatório PDF</button>
+                </div>
               </div>
             ) : (
-              /* ── Por Categoria ── */
-              <div className="space-y-6">
+              /* ── Por Categoria (expansível) ── */
+              <div className="space-y-2">
                 {porCategoria.map(({ cat, label, itens, total }) => {
                   const pct = totalDespesas > 0 ? (total / totalDespesas) * 100 : 0;
+                  const aberta = expandedCats.has(cat);
                   return (
-                    <div key={cat}>
-                      {/* Cabeçalho da categoria */}
-                      <div className="mb-2 flex items-center justify-between gap-2">
+                    <div key={cat} className="rounded-xl border border-border bg-surface overflow-hidden">
+                      {/* Cabeçalho clicável */}
+                      <button
+                        type="button"
+                        onClick={() => toggleCat(cat)}
+                        className="w-full px-4 py-3 flex items-center justify-between gap-2 text-left"
+                      >
                         <div className="min-w-0">
-                          <h2 className="font-extrabold uppercase tracking-wide text-foreground">
-                            {label}
-                          </h2>
-                          <p className="text-xs text-muted">
-                            {itens.length} {itens.length === 1 ? "registro" : "registros"} · {pct.toFixed(1)}%
-                          </p>
+                          <p className="font-extrabold uppercase tracking-wide text-foreground text-sm">{label}</p>
+                          <p className="text-xs text-muted">{itens.length} {itens.length === 1 ? "registro" : "registros"} · {pct.toFixed(1)}%</p>
                         </div>
-                        <span className="font-ticket font-bold text-despesa shrink-0">
-                          {formatCurrency(total)}
-                        </span>
-                      </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          <span className="font-ticket font-bold text-despesa">{formatCurrency(total)}</span>
+                          <span className="text-muted text-xs">{aberta ? "▲" : "▼"}</span>
+                        </div>
+                      </button>
                       {/* Barra de progresso */}
-                      <div className="mb-2 h-1 rounded-full bg-surface-2">
-                        <div className="h-1 rounded-full bg-despesa" style={{ width: `${pct}%` }} />
+                      <div className="h-1 bg-surface-2">
+                        <div className="h-1 bg-despesa" style={{ width: `${pct}%` }} />
                       </div>
-                      {/* Itens da categoria */}
-                      <ul className="space-y-2">
-                        {itens.map((d) => (
-                          <li
-                            key={d.id}
-                            className="rounded-xl border border-border bg-surface px-4 py-3"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="font-ticket font-bold">{formatCurrency(d.valor)}</p>
-                                <p className="truncate text-xs text-muted">
-                                  {formatDateOnly(d.created_at.slice(0, 10))}
-                                  {d.observacao ? ` · ${d.observacao}` : ""}
-                                </p>
+                      {/* Itens — só mostrar se expandido */}
+                      {aberta && (
+                        <ul className="divide-y divide-border px-4">
+                          {itens.map((d) => (
+                            <li key={d.id} className="py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="font-ticket font-bold">{formatCurrency(d.valor)}</p>
+                                  <p className="truncate text-xs text-muted">
+                                    {formatDateOnly(d.created_at.slice(0, 10))}{d.observacao ? ` · ${d.observacao}` : ""}
+                                  </p>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <button type="button" onClick={() => abrirEditar(d)} className="rounded-lg border border-border px-2 py-1 text-xs font-bold text-muted">Editar</button>
+                                  <button type="button" onClick={() => setParaExcluir(d)} className="rounded-lg border border-despesa/40 px-2 py-1 text-xs font-bold text-despesa">Excluir</button>
+                                </div>
                               </div>
-                              <div className="flex shrink-0 items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => abrirEditar(d)}
-                                  className="rounded-lg border border-border px-2 py-1 text-xs font-bold text-muted"
-                                >
-                                  Editar
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setParaExcluir(d)}
-                                  className="rounded-lg border border-despesa/40 px-2 py-1 text-xs font-bold text-despesa"
-                                >
-                                  Excluir
-                                </button>
-                              </div>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   );
                 })}
+                <div className="space-y-3 pt-2">
+                  <button type="button" onClick={() => exportCsv(despesasPeriodo)} className="w-full rounded-xl border border-border bg-surface-2 py-4 text-sm font-extrabold uppercase tracking-wide text-foreground">Exportar CSV</button>
+                  <button type="button" onClick={() => exportPdf(periodoLabel, despesasPeriodo, totalPorCategoria)} className="w-full rounded-xl border border-border bg-surface-2 py-4 text-sm font-extrabold uppercase tracking-wide text-foreground">Relatório PDF</button>
+                </div>
               </div>
             )}
-
-            {/* Exportar */}
-            <div className="space-y-3 pt-2">
-              <button
-                type="button"
-                onClick={() => exportCsv(despesasPeriodo)}
-                className="w-full rounded-xl border border-border bg-surface-2 py-4 text-sm font-extrabold uppercase tracking-wide text-foreground"
-              >
-                Exportar CSV (Despesas)
-              </button>
-              <button
-                type="button"
-                onClick={() => exportPdf(periodoLabel, despesasPeriodo, totalPorCategoria)}
-                className="w-full rounded-xl border border-border bg-surface-2 py-4 text-sm font-extrabold uppercase tracking-wide text-foreground"
-              >
-                Relatório PDF
-              </button>
-            </div>
           </>
         )}
       </div>
