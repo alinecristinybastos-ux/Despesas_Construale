@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { CATEGORIA_DESPESA_LABEL, type Despesa } from "./types";
+import { CATEGORIA_DESPESA_LABEL, CATEGORIA_PROLABORE_LABEL, type Despesa, type Prolabore } from "./types";
 import { formatCurrency } from "./format";
 
 function downloadBlob(content: string, filename: string, mime: string) {
@@ -87,4 +87,64 @@ export function exportPdf(
   });
 
   doc.save(`despesas-construale-${Date.now()}.pdf`);
+}
+
+export function exportProlaboreCsv(registros: Prolabore[], nomeArq?: string) {
+  const lines: string[] = ["data,valor,categoria,observacao"];
+  for (const r of registros) {
+    const date = new Date(r.created_at);
+    lines.push(
+      [
+        date.toLocaleDateString("pt-BR"),
+        r.valor.toFixed(2).replace(".", ","),
+        CATEGORIA_PROLABORE_LABEL[r.categoria],
+        r.observacao ?? "",
+      ]
+        .map((v) => csvEscape(String(v)))
+        .join(","),
+    );
+  }
+  downloadBlob(
+    "﻿" + lines.join("\n"),
+    nomeArq ?? `prolabore-${Date.now()}.csv`,
+    "text/csv;charset=utf-8",
+  );
+}
+
+export function exportProlaborePdf(
+  periodoLabel: string,
+  registros: Prolabore[],
+  totalPorCategoria: { categoria: string; total: number }[],
+) {
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text("Pró-labore Construale - Relatório", 14, 16);
+  doc.setFontSize(10);
+  doc.text(`Período: ${periodoLabel}`, 14, 23);
+  doc.text(`Gerado em: ${new Date().toLocaleString("pt-BR")}`, 14, 28);
+
+  const total = registros.reduce((acc, r) => acc + r.valor, 0);
+
+  autoTable(doc, {
+    startY: 34,
+    head: [["Resumo", "Valor"]],
+    body: [["Total pró-labore", formatCurrency(total)]],
+  });
+
+  autoTable(doc, {
+    head: [["Categoria", "Total"]],
+    body: totalPorCategoria.map((c) => [c.categoria, formatCurrency(c.total)]),
+  });
+
+  autoTable(doc, {
+    head: [["Data", "Valor", "Categoria", "Observação"]],
+    body: registros.map((r) => [
+      new Date(r.created_at).toLocaleDateString("pt-BR"),
+      formatCurrency(r.valor),
+      CATEGORIA_PROLABORE_LABEL[r.categoria],
+      r.observacao ?? "",
+    ]),
+  });
+
+  doc.save(`prolabore-${Date.now()}.pdf`);
 }
