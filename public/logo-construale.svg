@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 88">
+  <style>
+    .d { fill: #3a3a3a; }
+    .s { fill: none; stroke: #3a3a3a; stroke-linejoin: round; }
+    .y { fill: #f5a623; stroke: none; }
+    @media (prefers-color-scheme: dark) {
+      .d { fill: #f0f0f0; }
+      .s { stroke: #f0f0f0; }
+    }
+  </style>
+
+  <!-- Gear: 12 teeth, center (42,42), outer_r=34, root_r=24 -->
+  <polygon class="s" stroke-width="3.5"
+    points="76,42 65.18,48.21 71.44,59 58.97,58.97 59,71.44 48.21,65.18 42,76 35.79,65.18 25,71.44 25.03,58.97 12.56,59 18.82,48.21 8,42 18.82,35.79 12.56,25 25.03,25.03 25,12.56 35.79,18.82 42,8 48.21,18.82 59,12.56 58.97,25.03 71.44,25 65.18,35.79"/>
+
+  <!-- Gear hub -->
+  <circle class="s" stroke-width="2.5" cx="42" cy="42" r="10"/>
+
+  <!-- Excavator boom -->
+  <line class="s" stroke-width="5" stroke-linecap="round" x1="34" y1="20" x2="47" y2="37"/>
+  <circle class="d" cx="47" cy="37" r="3.5"/>
+  <!-- Arm -->
+  <line class="s" stroke-width="4" stroke-linecap="round" x1="47" y1="37" x2="55" y2="55"/>
+
+  <!-- Bucket -->
+  <path class="y" d="M51,53 L45,64 L58,65 L63,54 Z"/>
+  <line stroke="#f5a623" stroke-width="2.5" stroke-linecap="round" x1="45" y1="64" x2="43" y2="69"/>
+  <line stroke="#f5a623" stroke-width="2.5" stroke-linecap="round" x1="52" y1="65" x2="51" y2="70"/>
+  <line stroke="#f5a623" stroke-width="2.5" stroke-linecap="round" x1="57" y1="65" x2="56" y2="70"/>
+
+  <!-- Brand name -->
+  <text class="d" x="90" y="53"
+    font-family="'Arial Black',Arial,sans-serif"
+    font-size="30" font-weight="900">CONSTRUALE</text>
+
+  <!-- Yellow accent bar -->
+  <rect class="y" x="294" y="56" width="20" height="5" rx="2"/>
+
+  <!-- Tagline -->
+  <text class="d" x="90" y="70"
+    font-family="Arial,Helvetica,sans-serif"
+    font-size="9" letter-spacing="2.5">TERRAPLENAGEM E SERVI&#199;OS</text>
+</svg>
