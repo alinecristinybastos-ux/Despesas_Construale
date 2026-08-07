@@ -31,7 +31,7 @@ export default function PageHeader({
           {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
         </div>
         <Image
-          src="/logo-construale.jpeg"
+          src="/logo-construale.png"
           alt="Construale"
           width={115}
           height={32}
