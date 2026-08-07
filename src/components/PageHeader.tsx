@@ -33,10 +33,10 @@ export default function PageHeader({
         <Image
           src="/logo-construale.png"
           alt="Construale"
-          width={115}
-          height={32}
+          width={155}
+          height={67}
           priority
-          className="shrink-0 mt-1"
+          className="shrink-0"
         />
       </div>
     </header>
