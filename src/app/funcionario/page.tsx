@@ -55,6 +55,9 @@ export default function FuncionarioPage() {
   const [dataEditada, setDataEditada] = useState("");
   const [paraExcluirFalta, setParaExcluirFalta] = useState<FaltaFuncionario | null>(null);
 
+  // Excluir funcionário
+  const [paraExcluirFuncionario, setParaExcluirFuncionario] = useState<Funcionario | null>(null);
+
   // Vale
   const [paraVale, setParaVale] = useState<Funcionario | null>(null);
   const [valorVale, setValorVale] = useState("");
@@ -223,6 +226,14 @@ export default function FuncionarioPage() {
     setParaEditarFalta(null); setDataEditada("");
     if (error) { showToast(`Erro: ${error.message}`); return; }
     showToast("Falta atualizada."); carregarTudo();
+  }
+
+  async function confirmarExcluirFuncionario() {
+    if (!paraExcluirFuncionario) return;
+    const { error } = await supabase.from("funcionarios").delete().eq("id", paraExcluirFuncionario.id);
+    setParaExcluirFuncionario(null);
+    if (error) { showToast(`Erro: ${error.message}`); return; }
+    showToast("Funcionário excluído."); carregarTudo();
   }
 
   async function confirmarExcluirFalta() {
@@ -540,6 +551,12 @@ export default function FuncionarioPage() {
                           Falta
                         </button>
                       </div>
+                      <div className="flex justify-end pt-1">
+                        <button type="button" onClick={() => setParaExcluirFuncionario(f)}
+                          className="text-xs font-bold uppercase text-danger underline">
+                          Excluir funcionário
+                        </button>
+                      </div>
                     </div>
                   </li>
                 );
@@ -639,6 +656,15 @@ export default function FuncionarioPage() {
         confirmLabel="Sim, excluir"
         onConfirm={confirmarExcluirHe}
         onCancel={() => setParaExcluirHe(null)}
+      />
+
+      <ConfirmDialog
+        open={paraExcluirFuncionario !== null}
+        title="Excluir funcionário?"
+        description={`Isso irá remover ${paraExcluirFuncionario?.nome} e todos os pagamentos, faltas e horas extras vinculados. Esta ação não pode ser desfeita.`}
+        confirmLabel="Sim, excluir"
+        onConfirm={confirmarExcluirFuncionario}
+        onCancel={() => setParaExcluirFuncionario(null)}
       />
 
       {/* Overlay Horas Extras */}
