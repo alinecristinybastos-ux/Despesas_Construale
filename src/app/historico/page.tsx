@@ -36,6 +36,7 @@ export default function HistoricoPage() {
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const [busca, setBusca] = useState("");
   const [loading, setLoading] = useState(true);
+  const [erroDb, setErroDb] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const [paraConfirmar, setParaConfirmar] = useState<Despesa | null>(null);
@@ -58,10 +59,13 @@ export default function HistoricoPage() {
 
   async function load() {
     setLoading(true);
+    setErroDb(null);
     const [d1, d2] = await Promise.all([
       supabase.from("despesas").select("*").order("created_at", { ascending: false }),
       supabase.from("demandas").select("*").order("created_at", { ascending: false }),
     ]);
+    if (d1.error) { setErroDb(`Erro despesas: ${d1.error.message}`); setLoading(false); return; }
+    if (d2.error) { setErroDb(`Erro demandas: ${d2.error.message}`); setLoading(false); return; }
     setDespesas((d1.data as Despesa[]) ?? []);
     setDemandas((d2.data as Demanda[]) ?? []);
     setLoading(false);
@@ -226,7 +230,13 @@ export default function HistoricoPage() {
 
         {loading && <p className="py-8 text-center text-muted">Carregando...</p>}
 
-        {!loading && grupos.length === 0 && (
+        {erroDb && (
+          <p className="rounded-xl bg-red-100 p-4 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+            {erroDb}
+          </p>
+        )}
+
+        {!loading && !erroDb && grupos.length === 0 && (
           <p className="py-8 text-center text-muted">Nada encontrado.</p>
         )}
 
